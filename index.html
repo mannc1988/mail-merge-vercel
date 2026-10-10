@@ -10,10 +10,12 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <!-- DataTables Bootstrap 5 CSS -->
     <link href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <!-- SweetAlert2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
     <style>
         body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card-custom { border: none; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .upload-box { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 25px; text-align: center; background-color: #f8fafc; transition: all 0.3s; }
+        .upload-box { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; background-color: #f8fafc; transition: all 0.3s; }
         .upload-box:hover { border-color: #198754; background-color: #f0fdf4; }
         .table-responsive { max-height: 400px; }
         .badge-special { font-size: 0.8rem; margin-right: 4px; }
@@ -24,7 +26,7 @@
 <div class="container py-5">
     <!-- Header -->
     <div class="text-center mb-4">
-        <h2 class="fw-bold text-success"><i class="fa-solid fa-file-excel me-2"></i>Trộn Biểu Mẫu Từ File Excel</h2>
+        <h2 class="fw-bold text-success"><i class="fa-solid fa-file-excel me-2"></i>Trộn Biểu Mẫu Word & Excel</h2>
         <p class="text-muted">Hỗ trợ tự động định dạng: 
             <span class="badge bg-primary badge-special">BieuMau</span>
             <span class="badge bg-warning text-dark badge-special">TrangThai</span>
@@ -36,12 +38,23 @@
     <div class="card card-custom p-4 mb-4">
         <form id="mergeForm">
             <div class="row g-4 mb-4">
-                <div class="col-12">
-                    <label class="form-label fw-semibold fs-5"><i class="fa-solid fa-file-excel text-success me-2"></i>Tải Lên Tệp Excel Dữ Liệu (.xlsx)</label>
+                <!-- Excel File Upload (Bắt buộc) -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold"><i class="fa-solid fa-file-excel text-success me-2"></i>1. Tệp Excel Dữ Liệu (.xlsx) <span class="text-danger">*</span></label>
                     <div class="upload-box">
-                        <i class="fa-solid fa-file-csv fa-3x text-success mb-2"></i>
-                        <input type="file" id="dataFile" accept=".xlsx" class="form-control form-control-lg" required />
-                        <small class="text-muted d-block mt-2">Đảm bảo hàng đầu tiên chứa tên các cột tương ứng với nhãn {{TenBiên}} trong Word</small>
+                        <i class="fa-solid fa-file-csv fa-2x text-success mb-2"></i>
+                        <input type="file" id="dataFile" accept=".xlsx" class="form-control" required />
+                        <small class="text-muted d-block mt-1">Hàng 1 chứa tên cột tương ứng {{TenBiên}}</small>
+                    </div>
+                </div>
+
+                <!-- Word File Upload (Tùy chọn) -->
+                <div class="col-md-6">
+                    <label class="form-label fw-semibold"><i class="fa-solid fa-file-word text-primary me-2"></i>2. Tệp Word Mẫu Custom (.docx)</label>
+                    <div class="upload-box">
+                        <i class="fa-solid fa-cloud-arrow-up fa-2x text-primary mb-2"></i>
+                        <input type="file" id="templateFile" accept=".docx" class="form-control" />
+                        <small class="text-muted d-block mt-1">Tùy chọn (Bỏ trống nếu dùng mẫu lưu trên server)</small>
                     </div>
                 </div>
             </div>
@@ -88,11 +101,13 @@
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- SweetAlert2 JS -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
     let dataTableInstance = null;
 
-    // Xem trước Excel
+    // Xem trước dữ liệu Excel
     document.getElementById('dataFile').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -108,7 +123,7 @@
             if (jsonData.length > 0) {
                 if (dataTableInstance) {
                     dataTableInstance.destroy();
-                    $('#excelDataTable').empty();
+                    \$('#excelDataTable').empty();
                 }
 
                 const headers = jsonData[0];
@@ -130,7 +145,7 @@
                 document.getElementById('excelDataTable').innerHTML = `<thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody>`;
                 document.getElementById('previewCard').classList.remove('d-none');
 
-                dataTableInstance = $('#excelDataTable').DataTable({
+                dataTableInstance = \$('#excelDataTable').DataTable({
                     language: {
                         search: "<i class='fa-solid fa-magnifying-glass me-1'></i>Tìm kiếm:",
                         lengthMenu: "Hiển thị _MENU_ dòng",
@@ -145,11 +160,12 @@
         reader.readAsArrayBuffer(file);
     });
 
-    // Gửi Form xử lý
+    // Gửi Form xử lý trộn dữ liệu
     document.getElementById('mergeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const dataFile = document.getElementById('dataFile').files[0];
+        const templateFile = document.getElementById('templateFile').files[0];
         const filenameColumn = document.getElementById('filenameColumn').value.trim();
         const exportMode = document.getElementById('exportMode').value;
         const submitBtn = document.getElementById('submitBtn');
@@ -157,12 +173,23 @@
         const formData = new FormData();
         formData.append('data_file', dataFile);
         formData.append('export_mode', exportMode);
+        if (templateFile) formData.append('template_file', templateFile);
         if (filenameColumn) formData.append('filename_column', filenameColumn);
 
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Đang xử lý trộn dữ liệu...';
+        // Hiển thị SweetAlert2 Loading
+        Swal.fire({
+            title: 'Đang xử lý dữ liệu...',
+            text: 'Hệ thống đang trộn biểu mẫu, vui lòng chờ trong giây lát.',
+            icon: 'info',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            willOpen: () => {
+                Swal.showLoading();
+            }
+        });
 
-        // Tự động nhận diện gọi API từ Vercel hay khi hosting trên GitHub Pages
+        submitBtn.disabled = true;
+
         const apiUrl = window.location.hostname.includes('github.io') 
             ? 'https://mail-merge-vercel.vercel.app/api/merge' 
             : '/api/merge';
@@ -175,7 +202,7 @@
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.detail || 'Có lỗi xảy ra!');
+                throw new Error(errData.detail || 'Có lỗi xảy ra trong quá trình trộn!');
             }
 
             const blob = await response.blob();
@@ -187,12 +214,26 @@
             a.click();
             a.remove();
 
-            alert('✅ Trộn biểu mẫu thành công!');
+            // Thông báo thành công SweetAlert2
+            Swal.fire({
+                title: 'Thành Công!',
+                text: 'Trộn biểu mẫu thành công và đã tự động tải về tệp kết quả.',
+                icon: 'success',
+                confirmButtonText: 'Đóng',
+                confirmButtonColor: '#198754'
+            });
+
         } catch (err) {
-            alert('❌ Lỗi: ' + err.message);
+            // Thông báo lỗi SweetAlert2
+            Swal.fire({
+                title: 'Lỗi Xử Lý!',
+                text: err.message,
+                icon: 'error',
+                confirmButtonText: 'Thử lại',
+                confirmButtonColor: '#dc3545'
+            });
         } finally {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '<i class="fa-solid fa-gears me-2"></i>Thực Hiện Trộn Dữ Liệu';
         }
     });
 </script>

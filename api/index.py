@@ -12,7 +12,6 @@ import openpyxl
 
 app = FastAPI()
 
-# Bổ sung CORS hỗ trợ gọi API từ GitHub Pages hoặc các Domain khác
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,20 +21,13 @@ app.add_middleware(
 )
 
 def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
-    """
-    Xử lý định dạng theo 3 kiểu dữ liệu:
-    1. Date: Định dạng DD/MM/YYYY.
-    2. Number: Giữ nguyên số lẻ thập phân, định dạng theo VN (15.000.000,75) hoặc US (15,000,000.75).
-    3. String: Giữ nguyên văn bản.
-    """
+    """Xử lý định dạng theo 3 kiểu dữ liệu: Date, Number (VN/US), String."""
     if val is None:
         return ""
 
-    # 1. KIỂU DATE (Ngày tháng)
     if isinstance(val, (datetime, date)):
         return val.strftime("%d/%m/%Y")
 
-    # 2. KIỂU NUMBER (Số nguyên / Số thập phân)
     is_num = False
     num_val = None
 
@@ -54,7 +46,6 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
     if is_num and num_val is not None:
         fmt_type = str(num_format_type).strip().upper()
         
-        # Tách phần nguyên và phần thập phân để giữ nguyên số lẻ từ Excel
         if isinstance(num_val, float):
             str_float = f"{num_val:.10f}".rstrip('0').rstrip('.')
             if '.' in str_float:
@@ -66,17 +57,15 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
         else:
             formatted = f"{int(num_val):,}"
 
-        # Chuyển đổi định dạng VN (15.000.000,75) hoặc US (15,000,000.75)
         if fmt_type in ["VN", ".", "VIETNAM", "VIỆT NAM"]:
             formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
             
         return formatted
 
-    # 3. KIỂU STRING (Giữ nguyên văn bản)
     return str(val)
 
 def replace_placeholders_in_doc(doc: Document, replacements: dict):
-    """Thay thế {{Key}} trong Đoạn văn (Paragraphs) và Bảng (Tables)."""
+    """Thay thế {{Key}} trong Đoạn văn và Bảng."""
     for p in doc.paragraphs:
         for key, val in replacements.items():
             placeholder = f"{{{{{key}}}}}"
@@ -97,8 +86,11 @@ def append_document(target_doc: Document, source_doc: Document):
     for element in source_doc.element.body:
         target_doc.element.body.append(element)
 
-def get_template_bytes(template_name: Optional[str] = None) -> bytes:
-    """Đọc tệp Word mẫu theo tên cột BieuMau hoặc lấy mẫu mặc định template.docx."""
+def get_template_bytes(template_name: Optional[str] = None, uploaded_bytes: Optional[bytes] = None) -> bytes:
+    """Lấy file mẫu: Ưu tiên file upload custom từ client ➔ tệp theo cột BieuMau ➔ template.docx mặc định."""
+    if uploaded_bytes:
+        return uploaded_bytes
+
     filename = str(template_name).strip() if template_name and str(template_name).strip() else "template.docx"
     if not filename.endswith(".docx"):
         filename += ".docx"
@@ -115,7 +107,6 @@ def get_template_bytes(template_name: Optional[str] = None) -> bytes:
             with open(path, "rb") as f:
                 return f.read()
 
-    # Mẫu dự phòng mặc định
     default_paths = [
         Path(__file__).resolve().parent.parent / "template.docx",
         Path("template.docx")
@@ -129,7 +120,6 @@ def get_template_bytes(template_name: Optional[str] = None) -> bytes:
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    """Đọc tệp index.html ở thư mục gốc (root) của dự án."""
     possible_paths = [
         Path(__file__).resolve().parent.parent / "index.html",
         Path("index.html"),
@@ -146,11 +136,17 @@ def read_root():
 @app.post("/merge")
 async def merge_files(
     data_file: UploadFile = File(...),
+    template_file: Optional[UploadFile] = File(None), # 💡 Hỗ trợ upload file mẫu custom
     export_mode: str = Form("zip"),
     filename_column: Optional[str] = Form(None)
 ):
     if not data_file.filename.endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="Tệp dữ liệu phải có định dạng .xlsx")
+
+    # Đọc bytes của tệp template tùy chọn gửi từ client
+    custom_template_bytes = None
+    if template_file and template_file.filename.endswith(".docx"):
+        custom_template_bytes = await template_file.read()
 
     try:
         data_bytes = await data_file.read()
@@ -164,7 +160,7 @@ async def merge_files(
         headers = [str(cell).strip() if cell is not None else f"Column_{i}" for i, cell in enumerate(rows[0])]
         data_rows = rows[1:]
 
-        # Lọc danh sách dữ liệu hợp lệ dựa trên cột TrangThai
+        # Lọc danh sách dữ liệu hợp lệ (xử lý TrangThai)
         valid_rows = []
         for row in data_rows:
             row_dict = {h: val for h, val in zip(headers, row)}
@@ -178,7 +174,7 @@ async def merge_files(
         if not valid_rows:
             raise HTTPException(status_code=400, detail="Không có dòng dữ liệu hợp lệ để xử lý!")
 
-        # CHẾ ĐỘ 1: XUẤT 1 FILE WORD DUY NHẤT (SINGLE DOC)
+        # CHẾ ĐỘ 1: XUẤT 1 FILE WORD DUY NHẤT
         if export_mode == "single_doc":
             merged_doc = Document()
             for idx, row_dict in enumerate(valid_rows):
@@ -189,7 +185,7 @@ async def merge_files(
                     replacements[k] = format_cell_value(v, num_fmt)
 
                 template_name = str(row_dict.get("BieuMau", "") or "").strip()
-                template_bytes = get_template_bytes(template_name)
+                template_bytes = get_template_bytes(template_name, custom_template_bytes)
 
                 doc_stream = io.BytesIO(template_bytes)
                 doc = Document(doc_stream)
@@ -210,7 +206,7 @@ async def merge_files(
                 headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged.docx"}
             )
 
-        # CHẾ ĐỘ 2: XUẤT TỆP ZIP (NHIỀU FILE WORD)
+        # CHẾ ĐỘ 2: XUẤT TỆP ZIP
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -222,7 +218,7 @@ async def merge_files(
                         replacements[k] = format_cell_value(v, num_fmt)
 
                     template_name = str(row_dict.get("BieuMau", "") or "").strip()
-                    template_bytes = get_template_bytes(template_name)
+                    template_bytes = get_template_bytes(template_name, custom_template_bytes)
 
                     doc_stream = io.BytesIO(template_bytes)
                     doc = Document(doc_stream)
