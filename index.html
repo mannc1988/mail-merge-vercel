@@ -52,7 +52,7 @@
         </div>
     </div>
 
-    <!-- Card 1: Upload Biểu Mẫu Mới Lên GitHub (Đã fix lệch nút) -->
+    <!-- Card 1: Upload Biểu Mẫu Mới Lên GitHub -->
     <div class="card card-custom p-4 mb-4">
         <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Tải Lên Biểu Mẫu Mới (Lưu Vào GitHub)</h5>
         <form id="uploadTemplateForm">
@@ -75,7 +75,6 @@
         <h5 class="fw-bold text-success mb-3"><i class="fa-solid fa-gears me-2"></i>Trộn Dữ Liệu Mail Merge</h5>
         <form id="mergeForm">
             <div class="row g-4 mb-4">
-                <!-- Excel File Upload (Bắt buộc) -->
                 <div class="col-md-6">
                     <label class="form-label fw-semibold"><i class="fa-solid fa-file-excel text-success me-2"></i>1. Tệp Excel Dữ Liệu (.xlsx) <span class="text-danger">*</span></label>
                     <div class="upload-box">
@@ -85,7 +84,6 @@
                     </div>
                 </div>
 
-                <!-- Word File Upload Custom (Tùy chọn) -->
                 <div class="col-md-6">
                     <label class="form-label fw-semibold"><i class="fa-solid fa-file-word text-primary me-2"></i>2. Tệp Word Mẫu Tùy Chỉnh (.docx)</label>
                     <div class="upload-box">
@@ -96,7 +94,6 @@
                 </div>
             </div>
 
-            <!-- Configuration Options -->
             <div class="row g-3 mb-4 bg-light p-3 rounded">
                 <div class="col-md-6">
                     <label class="form-label fw-semibold"><i class="fa-solid fa-signature me-2"></i>Cột Excel dùng đặt tên file:</label>
@@ -111,7 +108,6 @@
                 </div>
             </div>
 
-            <!-- Submit Button -->
             <div class="text-center">
                 <button type="submit" id="submitBtn" class="btn btn-success btn-lg px-5 shadow-sm">
                     <i class="fa-solid fa-gears me-2"></i>Thực Hiện Trộn Dữ Liệu
@@ -120,7 +116,7 @@
         </form>
     </div>
 
-    <!-- Excel Preview Section (DataTables) -->
+    <!-- Excel Preview Section -->
     <div id="previewCard" class="card card-custom p-4 d-none">
         <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-table me-2"></i>Xem Trước Dữ Liệu Excel (DataTables)</h5>
         <div class="table-responsive">
@@ -150,13 +146,57 @@
             : endpoint;
     }
 
-    // Hàm tải tệp mẫu tham khảo (Word / Excel)
-    function downloadSample(type) {
-        const endpoint = type === 'template' ? '/api/download-sample/template' : '/api/download-sample/excel';
-        window.location.href = getApiUrl(endpoint);
+    // 1. Hàm Tải Tệp Mẫu Bắt Lỗi Bằng SweetAlert2
+    async function downloadSample(type) {
+        const isWord = type === 'template';
+        const endpoint = isWord ? '/api/download-sample/template' : '/api/download-sample/excel';
+        const filename = isWord ? 'Mau_Word_Template.docx' : 'Mau_Excel_Data.xlsx';
+
+        Swal.fire({
+            title: 'Đang tải tệp mẫu...',
+            text: 'Vui lòng chờ trong giây lát.',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        try {
+            const res = await fetch(getApiUrl(endpoint));
+            if (!res.ok) {
+                let errText = 'Lỗi tải tệp mẫu';
+                try {
+                    const errJson = await res.json();
+                    errText = errJson.detail || errText;
+                } catch(e) {}
+                throw new Error(errText);
+            }
+
+            const blob = await res.blob();
+            const downloadUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            Swal.fire({
+                title: 'Thành Công!',
+                text: `Đã tải tệp ${isWord ? 'Word' : 'Excel'} mẫu thành công.`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } catch (err) {
+            Swal.fire({
+                title: 'Lỗi Tải Mẫu!',
+                text: err.message,
+                icon: 'error',
+                confirmButtonColor: '#dc3545'
+            });
+        }
     }
 
-    // 1. Tải biểu mẫu mới lên GitHub
+    // 2. Upload Biểu Mẫu Lên GitHub
     document.getElementById('uploadTemplateForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fileInput = document.getElementById('newTemplateFile');
@@ -194,7 +234,7 @@
         }
     });
 
-    // 2. Xem trước dữ liệu Excel bằng DataTables
+    // 3. Xem trước dữ liệu Excel bằng DataTables
     document.getElementById('dataFile').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -210,7 +250,7 @@
             if (jsonData.length > 0) {
                 if (dataTableInstance) {
                     dataTableInstance.destroy();
-                    $('#excelDataTable').empty();
+                    \$('#excelDataTable').empty();
                 }
 
                 const headers = jsonData[0];
@@ -232,7 +272,7 @@
                 document.getElementById('excelDataTable').innerHTML = `<thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody>`;
                 document.getElementById('previewCard').classList.remove('d-none');
 
-                dataTableInstance = $('#excelDataTable').DataTable({
+                dataTableInstance = \$('#excelDataTable').DataTable({
                     language: {
                         search: "<i class='fa-solid fa-magnifying-glass me-1'></i>Tìm kiếm:",
                         lengthMenu: "Hiển thị _MENU_ dòng",
@@ -247,7 +287,7 @@
         reader.readAsArrayBuffer(file);
     });
 
-    // 3. Thực hiện trộn dữ liệu Mail Merge
+    // 4. Trộn dữ liệu Mail Merge
     document.getElementById('mergeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 

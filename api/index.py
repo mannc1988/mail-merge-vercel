@@ -26,6 +26,27 @@ GITHUB_REPO = "mannc1988/mail-merge-vercel"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 
+def create_default_template_docx_bytes() -> bytes:
+    """Tự động tạo một tệp Word mẫu mặc định chuẩn bằng python-docx nếu server thiếu file."""
+    doc = Document()
+    doc.add_heading("GIẤY XÁC NHẬN / THÔNG BÁO", level=1)
+    
+    p = doc.add_paragraph("Kính gửi ông/bà: ")
+    p.add_run("{{HoTen}}").bold = True
+    
+    p2 = doc.add_paragraph()
+    p2.add_run("Ngày sinh: {{NgaySinh}}\n")
+    p2.add_run("Chức vụ: {{ChucVu}}\n")
+    p2.add_run("Số tiền thanh toán: {{SoTien}} VNĐ")
+    
+    doc.add_paragraph("\nTrân trọng cảm ơn!")
+    
+    stream = io.BytesIO()
+    doc.save(stream)
+    stream.seek(0)
+    return stream.getvalue()
+
+
 def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
     if val is None:
         return ""
@@ -121,7 +142,8 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
             with open(path, "rb") as f:
                 return f.read()
 
-    raise HTTPException(status_code=500, detail=f"Không tìm thấy biểu mẫu '{filename}' trên Server!")
+    # Nếu hoàn toàn không tìm thấy tệp nào trên Server, tự sinh dữ liệu Word mẫu trong RAM
+    return create_default_template_docx_bytes()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -141,7 +163,7 @@ def read_root():
 
 @app.get("/api/download-sample/template")
 def download_sample_template():
-    """Cho phép người dùng tải tệp Word mẫu template.docx."""
+    """Tải tệp Word mẫu (Tự động sinh nếu chưa có trên server)."""
     template_bytes = get_template_bytes()
     return Response(
         content=template_bytes,
@@ -152,15 +174,12 @@ def download_sample_template():
 
 @app.get("/api/download-sample/excel")
 def download_sample_excel():
-    """Tự động tạo và cho người dùng tải tệp Excel dữ liệu mẫu đầy đủ các cột."""
+    """Tự động tạo tệp Excel dữ liệu mẫu."""
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "DuLieuMau"
 
-    # Header
     ws.append(["HoTen", "NgaySinh", "ChucVu", "SoTien", "BieuMau", "TrangThai", "DauPhanCachPhanNghin"])
-    
-    # Dữ liệu mẫu
     ws.append(["Nguyễn Văn A", "2000-05-15", "Trưởng phòng", 15000000.75, "template.docx", "Hiện", "VN"])
     ws.append(["Trần Thị B", "1995-10-20", "Chuyên viên", 8500000, "template.docx", "Hiện", "US"])
     ws.append(["Lê Văn C", "1998-12-01", "Nhân viên", 5000000, "template.docx", "Ẩn", "VN"])
