@@ -34,18 +34,38 @@
         </p>
     </div>
 
-    <!-- Card 1: Upload Biểu Mẫu Mới Lên GitHub -->
+    <!-- Section: Tải Tệp Mẫu Tham Khảo -->
+    <div class="card card-custom p-3 mb-4 bg-light border-start border-4 border-success">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <div>
+                <h6 class="fw-bold mb-1 text-dark"><i class="fa-solid fa-download me-2 text-success"></i>Tải Tệp Mẫu Tham Khảo:</h6>
+                <small class="text-muted">Tải về tệp mẫu Word và Excel chuẩn để làm dữ liệu thử nghiệm.</small>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" onclick="downloadSample('template')" class="btn btn-outline-primary btn-sm">
+                    <i class="fa-solid fa-file-word me-1"></i>Tải Word Mẫu (.docx)
+                </button>
+                <button type="button" onclick="downloadSample('excel')" class="btn btn-outline-success btn-sm">
+                    <i class="fa-solid fa-file-excel me-1"></i>Tải Excel Mẫu (.xlsx)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 1: Upload Biểu Mẫu Mới Lên GitHub (Đã fix lệch nút) -->
     <div class="card card-custom p-4 mb-4">
         <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Tải Lên Biểu Mẫu Mới (Lưu Vào GitHub)</h5>
-        <form id="uploadTemplateForm" class="row g-3 align-items-center">
-            <div class="col-md-8">
-                <input type="file" id="newTemplateFile" accept=".docx" class="form-control" required />
-                <small class="text-muted">Tệp Word <code>.docx</code> sẽ được lưu vĩnh viễn vào thư mục <code>templates/</code> trên GitHub.</small>
-            </div>
-            <div class="col-md-4">
-                <button type="submit" id="uploadBtn" class="btn btn-primary w-100">
-                    <i class="fa-solid fa-upload me-2"></i>Lưu Biểu Mẫu Lên GitHub
-                </button>
+        <form id="uploadTemplateForm">
+            <div class="row g-2 align-items-start">
+                <div class="col-md-8">
+                    <input type="file" id="newTemplateFile" accept=".docx" class="form-control" required />
+                    <small class="text-muted d-block mt-1">Tệp Word <code>.docx</code> sẽ được lưu vĩnh viễn vào thư mục <code>templates/</code> trên GitHub.</small>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" id="uploadBtn" class="btn btn-primary w-100">
+                        <i class="fa-solid fa-upload me-2"></i>Lưu Biểu Mẫu Lên GitHub
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -124,11 +144,16 @@
 <script>
     let dataTableInstance = null;
 
-    // Lấy URL API phù hợp (Tự nhận diện khi host ở GitHub Pages hay Vercel)
     function getApiUrl(endpoint) {
         return window.location.hostname.includes('github.io') 
             ? `https://mail-merge-vercel.vercel.app${endpoint}` 
             : endpoint;
+    }
+
+    // Hàm tải tệp mẫu tham khảo (Word / Excel)
+    function downloadSample(type) {
+        const endpoint = type === 'template' ? '/api/download-sample/template' : '/api/download-sample/excel';
+        window.location.href = getApiUrl(endpoint);
     }
 
     // 1. Tải biểu mẫu mới lên GitHub
@@ -185,7 +210,7 @@
             if (jsonData.length > 0) {
                 if (dataTableInstance) {
                     dataTableInstance.destroy();
-                    $('#excelDataTable').empty();
+                    \$('#excelDataTable').empty();
                 }
 
                 const headers = jsonData[0];
@@ -207,7 +232,7 @@
                 document.getElementById('excelDataTable').innerHTML = `<thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody>`;
                 document.getElementById('previewCard').classList.remove('d-none');
 
-                dataTableInstance = $('#excelDataTable').DataTable({
+                dataTableInstance = \$('#excelDataTable').DataTable({
                     language: {
                         search: "<i class='fa-solid fa-magnifying-glass me-1'></i>Tìm kiếm:",
                         lengthMenu: "Hiển thị _MENU_ dòng",
