@@ -34,11 +34,11 @@ def append_document(target_doc: Document, source_doc: Document):
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    """Đọc tệp templates/index.html linh hoạt cho Vercel Serverless."""
+    # Tìm file theo nhiều đường dẫn tương đối và tuyệt đối trên Vercel
     possible_paths = [
         Path(__file__).resolve().parent.parent / "templates" / "index.html",
-        Path("templates/index.html"),
-        Path(__file__).resolve().parent / "templates" / "index.html"
+        Path(__file__).resolve().parent / "templates" / "index.html",
+        Path("templates/index.html")
     ]
     
     for path in possible_paths:
@@ -46,7 +46,7 @@ def read_root():
             with open(path, "r", encoding="utf-8") as f:
                 return HTMLResponse(content=f.read())
                 
-    raise HTTPException(status_code=404, detail="Không tìm thấy tệp templates/index.html")
+    raise HTTPException(status_code=404, detail="Khong tim thay tệp templates/index.html")
 
 @app.post("/api/merge")
 async def merge_files(
