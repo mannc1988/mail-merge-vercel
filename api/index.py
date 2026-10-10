@@ -14,7 +14,6 @@ import openpyxl
 
 app = FastAPI()
 
-# Cấu hình CORS để hỗ trợ kết nối từ GitHub Pages hoặc Domain khác
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,26 +22,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Khai báo thông tin GitHub Repository để upload tệp mẫu trực tiếp
 GITHUB_REPO = "mannc1988/mail-merge-vercel"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 
 def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
-    """
-    Định dạng dữ liệu theo 3 kiểu:
-    1. Date: DD/MM/YYYY.
-    2. Number: Giữ số lẻ thập phân, định dạng phân cách phần nghìn VN (15.000.000,75) hoặc US (15,000,000.75).
-    3. String: Giữ nguyên chuỗi văn bản.
-    """
     if val is None:
         return ""
 
-    # 1. Kiểu Date
     if isinstance(val, (datetime, date)):
         return val.strftime("%d/%m/%Y")
 
-    # 2. Kiểu Number
     is_num = False
     num_val = None
 
@@ -61,7 +51,6 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
     if is_num and num_val is not None:
         fmt_type = str(num_format_type).strip().upper()
         
-        # Tách phần nguyên và phần thập phân để giữ nguyên số lẻ từ Excel
         if isinstance(num_val, float):
             str_float = f"{num_val:.10f}".rstrip('0').rstrip('.')
             if '.' in str_float:
@@ -73,18 +62,15 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
         else:
             formatted = f"{int(num_val):,}"
 
-        # Đổi định dạng theo chuẩn Việt Nam (VN: 15.000.000,75)
         if fmt_type in ["VN", ".", "VIETNAM", "VIỆT NAM"]:
             formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
             
         return formatted
 
-    # 3. Kiểu String
     return str(val)
 
 
 def replace_placeholders_in_doc(doc: Document, replacements: dict):
-    """Thay thế {{Key}} trong các Đoạn văn (Paragraphs) và Bảng (Tables)."""
     for p in doc.paragraphs:
         for key, val in replacements.items():
             placeholder = f"{{{{{key}}}}}"
@@ -102,13 +88,11 @@ def replace_placeholders_in_doc(doc: Document, replacements: dict):
 
 
 def append_document(target_doc: Document, source_doc: Document):
-    """Gộp nội dung từ source_doc vào target_doc."""
     for element in source_doc.element.body:
         target_doc.element.body.append(element)
 
 
 def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Optional[bytes] = None) -> bytes:
-    """Lấy nội dung file Word mẫu: Ưu tiên file custom upload -> file trong templates/ -> template.docx mặc định."""
     if custom_bytes:
         return custom_bytes
 
@@ -142,7 +126,6 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    """Đọc tệp index.html ở thư mục gốc (root) dự án."""
     possible_paths = [
         Path(__file__).resolve().parent.parent / "index.html",
         Path("index.html"),
@@ -156,9 +139,45 @@ def read_root():
     raise HTTPException(status_code=404, detail="Không tìm thấy tệp index.html")
 
 
+@app.get("/api/download-sample/template")
+def download_sample_template():
+    """Cho phép người dùng tải tệp Word mẫu template.docx."""
+    template_bytes = get_template_bytes()
+    return Response(
+        content=template_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": "attachment; filename=Mau_Word_Template.docx"}
+    )
+
+
+@app.get("/api/download-sample/excel")
+def download_sample_excel():
+    """Tự động tạo và cho người dùng tải tệp Excel dữ liệu mẫu đầy đủ các cột."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "DuLieuMau"
+
+    # Header
+    ws.append(["HoTen", "NgaySinh", "ChucVu", "SoTien", "BieuMau", "TrangThai", "DauPhanCachPhanNghin"])
+    
+    # Dữ liệu mẫu
+    ws.append(["Nguyễn Văn A", "2000-05-15", "Trưởng phòng", 15000000.75, "template.docx", "Hiện", "VN"])
+    ws.append(["Trần Thị B", "1995-10-20", "Chuyên viên", 8500000, "template.docx", "Hiện", "US"])
+    ws.append(["Lê Văn C", "1998-12-01", "Nhân viên", 5000000, "template.docx", "Ẩn", "VN"])
+
+    output_stream = io.BytesIO()
+    wb.save(output_stream)
+    output_stream.seek(0)
+
+    return Response(
+        content=output_stream.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Mau_Excel_Data.xlsx"}
+    )
+
+
 @app.post("/api/upload-template")
 async def upload_template_to_github(template_file: UploadFile = File(...)):
-    """Tải tệp .docx mẫu lên và commit trực tiếp vào thư mục templates/ trên GitHub."""
     if not template_file.filename.endswith(".docx"):
         raise HTTPException(status_code=400, detail="Chỉ chấp nhận tệp biểu mẫu định dạng .docx!")
 
@@ -177,7 +196,6 @@ async def upload_template_to_github(template_file: UploadFile = File(...)):
         "Accept": "application/vnd.github.v3+json"
     }
 
-    # Kiểm tra tệp đã tồn tại trên GitHub hay chưa để lấy SHA (cho thao tác cập nhật)
     sha = None
     get_res = requests.get(url, headers=headers)
     if get_res.status_code == 200:
@@ -227,7 +245,6 @@ async def merge_files(
         headers = [str(cell).strip() if cell is not None else f"Column_{i}" for i, cell in enumerate(rows[0])]
         data_rows = rows[1:]
 
-        # Lọc danh sách dữ liệu hợp lệ dựa trên cột TrangThai
         valid_rows = []
         for row in data_rows:
             row_dict = {h: val for h, val in zip(headers, row)}
@@ -241,7 +258,6 @@ async def merge_files(
         if not valid_rows:
             raise HTTPException(status_code=400, detail="Không có dòng dữ liệu hợp lệ để xử lý!")
 
-        # CHẾ ĐỘ 1: XUẤT 1 FILE WORD DUY NHẤT (SINGLE DOC)
         if export_mode == "single_doc":
             merged_doc = Document()
             for idx, row_dict in enumerate(valid_rows):
@@ -273,7 +289,6 @@ async def merge_files(
                 headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged.docx"}
             )
 
-        # CHẾ ĐỘ 2: XUẤT TỆP ZIP (NHIỀU FILE WORD)
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
