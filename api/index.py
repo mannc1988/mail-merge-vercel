@@ -2,6 +2,7 @@ import io
 import os
 import zipfile
 from typing import Optional
+from pathlib import Path
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from docx import Document
@@ -10,7 +11,7 @@ import openpyxl
 app = FastAPI()
 
 def replace_placeholders_in_doc(doc: Document, replacements: dict):
-    """Thay thế {{Key}} trong các Paragraphs và Tables."""
+    """Thay thế {{Key}} trong Paragraphs và Tables."""
     for p in doc.paragraphs:
         for key, val in replacements.items():
             placeholder = f"{{{{{key}}}}}"
@@ -27,17 +28,26 @@ def replace_placeholders_in_doc(doc: Document, replacements: dict):
                             p.text = p.text.replace(placeholder, str(val))
 
 def append_document(target_doc: Document, source_doc: Document):
-    """Hàm gộp nội dung từ source_doc vào target_doc và chèn ngắt trang."""
+    """Gộp nội dung từ source_doc vào target_doc."""
     for element in source_doc.element.body:
         target_doc.element.body.append(element)
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    template_path = os.path.join(os.path.dirname(__file__), "..", "templates", "index.html")
-    if os.path.exists(template_path):
-        with open(template_path, "r", encoding="utf-8") as f:
-            return HTMLResponse(content=f.read())
-    return HTMLResponse(content="<h1>Templates not found</h1>", status_code=404)
+    """Đọc file index.html linh hoạt hỗ trợ Vercel Serverless environment."""
+    # Tìm file index.html theo nhiều vị trí tương đối
+    possible_paths = [
+        Path(__file__).parent.parent / "templates" / "index.html",
+        Path("templates/index.html"),
+        Path("../templates/index.html")
+    ]
+    
+    for path in possible_paths:
+        if path.exists():
+            with open(path, "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
+                
+    raise HTTPException(status_code=404, detail="Khong tim thấy tệp templates/index.html")
 
 @app.post("/api/merge")
 async def merge_files(
@@ -66,7 +76,7 @@ async def merge_files(
 
         template_bytes = await template_file.read()
 
-        # CHẾ ĐỘ 1: XUẤT 1 FILE WORD DUY NHẤT (SINGLE DOC)
+        # CHẾ ĐỘ 1: XUẤT 1 FILE WORD DUY NHẤT
         if export_mode == "single_doc":
             merged_doc = Document()
             for idx, row in enumerate(data_rows):
@@ -91,7 +101,7 @@ async def merge_files(
                 headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged.docx"}
             )
 
-        # CHẾ ĐỘ 2: XUẤT TỆP ZIP CHỨA NHIỀU FILE WORD
+        # CHẾ ĐỘ 2: XUẤT TỆP ZIP
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
