@@ -5,10 +5,20 @@ from pathlib import Path
 from typing import Optional
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
 from docx import Document
 import openpyxl
 
 app = FastAPI()
+
+# 💡 BỔ SUNG: Cấu hình CORS cho phép GitHub Pages và các domain khác truy cập API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Hoặc chỉ định rõ ["https://mannc1988.github.io"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def replace_placeholders_in_doc(doc: Document, replacements: dict):
     """Thay thế {{Key}} trong các Đoạn văn (Paragraphs) và Bảng (Tables)."""
@@ -34,7 +44,6 @@ def append_document(target_doc: Document, source_doc: Document):
 
 @app.get("/", response_class=HTMLResponse)
 def read_root():
-    # Tìm file theo nhiều đường dẫn tương đối và tuyệt đối trên Vercel
     possible_paths = [
         Path(__file__).resolve().parent.parent / "templates" / "index.html",
         Path(__file__).resolve().parent / "templates" / "index.html",
@@ -61,7 +70,6 @@ async def merge_files(
         raise HTTPException(status_code=400, detail="Tệp dữ liệu phải có định dạng .xlsx")
 
     try:
-        # Đọc dữ liệu Excel
         data_bytes = await data_file.read()
         wb = openpyxl.load_workbook(io.BytesIO(data_bytes), data_only=True)
         sheet = wb.active
@@ -75,7 +83,6 @@ async def merge_files(
 
         template_bytes = await template_file.read()
 
-        # CHẾ ĐỘ 1: XUẤT 1 FILE WORD DUY NHẤT
         if export_mode == "single_doc":
             merged_doc = Document()
             for idx, row in enumerate(data_rows):
@@ -99,8 +106,6 @@ async def merge_files(
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                 headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged.docx"}
             )
-
-        # CHẾ ĐỘ 2: XUẤT TỆP ZIP CHỨA NHIỀU FILE WORD
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
