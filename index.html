@@ -34,8 +34,25 @@
         </p>
     </div>
 
-    <!-- Main Card -->
+    <!-- Card 1: Upload Biểu Mẫu Mới Lên GitHub -->
     <div class="card card-custom p-4 mb-4">
+        <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Tải Lên Biểu Mẫu Mới (Lưu Vào GitHub)</h5>
+        <form id="uploadTemplateForm" class="row g-3 align-items-center">
+            <div class="col-md-8">
+                <input type="file" id="newTemplateFile" accept=".docx" class="form-control" required />
+                <small class="text-muted">Tệp Word <code>.docx</code> sẽ được lưu vĩnh viễn vào thư mục <code>templates/</code> trên GitHub.</small>
+            </div>
+            <div class="col-md-4">
+                <button type="submit" id="uploadBtn" class="btn btn-primary w-100">
+                    <i class="fa-solid fa-upload me-2"></i>Lưu Biểu Mẫu Lên GitHub
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Card 2: Form Trộn Dữ Liệu Excel & Word -->
+    <div class="card card-custom p-4 mb-4">
+        <h5 class="fw-bold text-success mb-3"><i class="fa-solid fa-gears me-2"></i>Trộn Dữ Liệu Mail Merge</h5>
         <form id="mergeForm">
             <div class="row g-4 mb-4">
                 <!-- Excel File Upload (Bắt buộc) -->
@@ -44,22 +61,22 @@
                     <div class="upload-box">
                         <i class="fa-solid fa-file-csv fa-2x text-success mb-2"></i>
                         <input type="file" id="dataFile" accept=".xlsx" class="form-control" required />
-                        <small class="text-muted d-block mt-1">Hàng 1 chứa tên cột tương ứng {{TenBiên}}</small>
+                        <small class="text-muted d-block mt-1">Hàng 1 chứa tên các cột tương ứng {{TenBiên}} trong Word</small>
                     </div>
                 </div>
 
-                <!-- Word File Upload (Tùy chọn) -->
+                <!-- Word File Upload Custom (Tùy chọn) -->
                 <div class="col-md-6">
-                    <label class="form-label fw-semibold"><i class="fa-solid fa-file-word text-primary me-2"></i>2. Tệp Word Mẫu Custom (.docx)</label>
+                    <label class="form-label fw-semibold"><i class="fa-solid fa-file-word text-primary me-2"></i>2. Tệp Word Mẫu Tùy Chỉnh (.docx)</label>
                     <div class="upload-box">
-                        <i class="fa-solid fa-cloud-arrow-up fa-2x text-primary mb-2"></i>
+                        <i class="fa-solid fa-file-word fa-2x text-primary mb-2"></i>
                         <input type="file" id="templateFile" accept=".docx" class="form-control" />
-                        <small class="text-muted d-block mt-1">Tùy chọn (Bỏ trống nếu dùng mẫu lưu trên server)</small>
+                        <small class="text-muted d-block mt-1">Tùy chọn (Bỏ trống nếu muốn dùng mẫu lưu trên server)</small>
                     </div>
                 </div>
             </div>
 
-            <!-- Configurations -->
+            <!-- Configuration Options -->
             <div class="row g-3 mb-4 bg-light p-3 rounded">
                 <div class="col-md-6">
                     <label class="form-label fw-semibold"><i class="fa-solid fa-signature me-2"></i>Cột Excel dùng đặt tên file:</label>
@@ -107,7 +124,52 @@
 <script>
     let dataTableInstance = null;
 
-    // Xem trước dữ liệu Excel
+    // Lấy URL API phù hợp (Tự nhận diện khi host ở GitHub Pages hay Vercel)
+    function getApiUrl(endpoint) {
+        return window.location.hostname.includes('github.io') 
+            ? `https://mail-merge-vercel.vercel.app${endpoint}` 
+            : endpoint;
+    }
+
+    // 1. Tải biểu mẫu mới lên GitHub
+    document.getElementById('uploadTemplateForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fileInput = document.getElementById('newTemplateFile');
+        if (!fileInput.files[0]) return;
+
+        const formData = new FormData();
+        formData.append('template_file', fileInput.files[0]);
+
+        Swal.fire({
+            title: 'Đang tải biểu mẫu lên GitHub...',
+            text: 'Vui lòng chờ trong giây lát',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+        });
+
+        try {
+            const res = await fetch(getApiUrl('/api/upload-template'), { method: 'POST', body: formData });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.detail || 'Lỗi không thể tải tệp lên!');
+
+            Swal.fire({
+                title: 'Thành Công!',
+                text: data.message,
+                icon: 'success',
+                confirmButtonColor: '#198754'
+            });
+            fileInput.value = '';
+        } catch (err) {
+            Swal.fire({
+                title: 'Lỗi Tải Lên!',
+                text: err.message,
+                icon: 'error',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    });
+
+    // 2. Xem trước dữ liệu Excel bằng DataTables
     document.getElementById('dataFile').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -160,7 +222,7 @@
         reader.readAsArrayBuffer(file);
     });
 
-    // Gửi Form xử lý trộn dữ liệu
+    // 3. Thực hiện trộn dữ liệu Mail Merge
     document.getElementById('mergeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -176,26 +238,17 @@
         if (templateFile) formData.append('template_file', templateFile);
         if (filenameColumn) formData.append('filename_column', filenameColumn);
 
-        // Hiển thị SweetAlert2 Loading
         Swal.fire({
             title: 'Đang xử lý dữ liệu...',
             text: 'Hệ thống đang trộn biểu mẫu, vui lòng chờ trong giây lát.',
-            icon: 'info',
             allowOutsideClick: false,
-            showConfirmButton: false,
-            willOpen: () => {
-                Swal.showLoading();
-            }
+            didOpen: () => { Swal.showLoading(); }
         });
 
         submitBtn.disabled = true;
 
-        const apiUrl = window.location.hostname.includes('github.io') 
-            ? 'https://mail-merge-vercel.vercel.app/api/merge' 
-            : '/api/merge';
-
         try {
-            const response = await fetch(apiUrl, {
+            const response = await fetch(getApiUrl('/api/merge'), {
                 method: 'POST',
                 body: formData
             });
@@ -214,22 +267,18 @@
             a.click();
             a.remove();
 
-            // Thông báo thành công SweetAlert2
             Swal.fire({
                 title: 'Thành Công!',
-                text: 'Trộn biểu mẫu thành công và đã tự động tải về tệp kết quả.',
+                text: 'Trộn biểu mẫu thành công và đã tự động tải tệp kết quả về máy.',
                 icon: 'success',
-                confirmButtonText: 'Đóng',
                 confirmButtonColor: '#198754'
             });
 
         } catch (err) {
-            // Thông báo lỗi SweetAlert2
             Swal.fire({
                 title: 'Lỗi Xử Lý!',
                 text: err.message,
                 icon: 'error',
-                confirmButtonText: 'Thử lại',
                 confirmButtonColor: '#dc3545'
             });
         } finally {

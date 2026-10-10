@@ -3,3 +3,4 @@ uvicorn
 python-docx
 openpyxl
 python-multipart
+requests

@@ -1,6 +1,8 @@
 import io
 import os
+import base64
 import zipfile
+import requests
 from datetime import datetime, date
 from pathlib import Path
 from typing import Optional, Any
@@ -12,6 +14,7 @@ import openpyxl
 
 app = FastAPI()
 
+# Cấu hình CORS để hỗ trợ kết nối từ GitHub Pages hoặc Domain khác
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,14 +23,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Khai báo thông tin GitHub Repository để upload tệp mẫu trực tiếp
+GITHUB_REPO = "mannc1988/mail-merge-vercel"
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
+
 def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
-    """Xử lý định dạng theo 3 kiểu dữ liệu: Date, Number (VN/US), String."""
+    """
+    Định dạng dữ liệu theo 3 kiểu:
+    1. Date: DD/MM/YYYY.
+    2. Number: Giữ số lẻ thập phân, định dạng phân cách phần nghìn VN (15.000.000,75) hoặc US (15,000,000.75).
+    3. String: Giữ nguyên chuỗi văn bản.
+    """
     if val is None:
         return ""
 
+    # 1. Kiểu Date
     if isinstance(val, (datetime, date)):
         return val.strftime("%d/%m/%Y")
 
+    # 2. Kiểu Number
     is_num = False
     num_val = None
 
@@ -46,6 +61,7 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
     if is_num and num_val is not None:
         fmt_type = str(num_format_type).strip().upper()
         
+        # Tách phần nguyên và phần thập phân để giữ nguyên số lẻ từ Excel
         if isinstance(num_val, float):
             str_float = f"{num_val:.10f}".rstrip('0').rstrip('.')
             if '.' in str_float:
@@ -57,15 +73,18 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
         else:
             formatted = f"{int(num_val):,}"
 
+        # Đổi định dạng theo chuẩn Việt Nam (VN: 15.000.000,75)
         if fmt_type in ["VN", ".", "VIETNAM", "VIỆT NAM"]:
             formatted = formatted.replace(",", "X").replace(".", ",").replace("X", ".")
             
         return formatted
 
+    # 3. Kiểu String
     return str(val)
 
+
 def replace_placeholders_in_doc(doc: Document, replacements: dict):
-    """Thay thế {{Key}} trong Đoạn văn và Bảng."""
+    """Thay thế {{Key}} trong các Đoạn văn (Paragraphs) và Bảng (Tables)."""
     for p in doc.paragraphs:
         for key, val in replacements.items():
             placeholder = f"{{{{{key}}}}}"
@@ -81,15 +100,17 @@ def replace_placeholders_in_doc(doc: Document, replacements: dict):
                         if placeholder in p.text:
                             p.text = p.text.replace(placeholder, str(val))
 
+
 def append_document(target_doc: Document, source_doc: Document):
     """Gộp nội dung từ source_doc vào target_doc."""
     for element in source_doc.element.body:
         target_doc.element.body.append(element)
 
-def get_template_bytes(template_name: Optional[str] = None, uploaded_bytes: Optional[bytes] = None) -> bytes:
-    """Lấy file mẫu: Ưu tiên file upload custom từ client ➔ tệp theo cột BieuMau ➔ template.docx mặc định."""
-    if uploaded_bytes:
-        return uploaded_bytes
+
+def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Optional[bytes] = None) -> bytes:
+    """Lấy nội dung file Word mẫu: Ưu tiên file custom upload -> file trong templates/ -> template.docx mặc định."""
+    if custom_bytes:
+        return custom_bytes
 
     filename = str(template_name).strip() if template_name and str(template_name).strip() else "template.docx"
     if not filename.endswith(".docx"):
@@ -118,8 +139,10 @@ def get_template_bytes(template_name: Optional[str] = None, uploaded_bytes: Opti
 
     raise HTTPException(status_code=500, detail=f"Không tìm thấy biểu mẫu '{filename}' trên Server!")
 
+
 @app.get("/", response_class=HTMLResponse)
 def read_root():
+    """Đọc tệp index.html ở thư mục gốc (root) dự án."""
     possible_paths = [
         Path(__file__).resolve().parent.parent / "index.html",
         Path("index.html"),
@@ -132,18 +155,62 @@ def read_root():
                 return HTMLResponse(content=f.read())
     raise HTTPException(status_code=404, detail="Không tìm thấy tệp index.html")
 
+
+@app.post("/api/upload-template")
+async def upload_template_to_github(template_file: UploadFile = File(...)):
+    """Tải tệp .docx mẫu lên và commit trực tiếp vào thư mục templates/ trên GitHub."""
+    if not template_file.filename.endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận tệp biểu mẫu định dạng .docx!")
+
+    if not GITHUB_TOKEN:
+        raise HTTPException(status_code=500, detail="Chưa cấu hình biến môi trường GITHUB_TOKEN trên Vercel!")
+
+    filename = template_file.filename.strip()
+    file_bytes = await template_file.read()
+    content_b64 = base64.b64encode(file_bytes).decode("utf-8")
+
+    github_file_path = f"templates/{filename}"
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{github_file_path}"
+
+    headers = {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    # Kiểm tra tệp đã tồn tại trên GitHub hay chưa để lấy SHA (cho thao tác cập nhật)
+    sha = None
+    get_res = requests.get(url, headers=headers)
+    if get_res.status_code == 200:
+        sha = get_res.json().get("sha")
+
+    payload = {
+        "message": f"Upload new template {filename} via Web Interface",
+        "content": content_b64,
+        "branch": "main"
+    }
+    if sha:
+        payload["sha"] = sha
+
+    put_res = requests.put(url, json=payload, headers=headers)
+
+    if put_res.status_code in [200, 201]:
+        return {"message": f"Đã lưu thành công biểu mẫu '{filename}' lên GitHub!", "filename": filename}
+    else:
+        err_msg = put_res.json().get("message", "Lỗi không xác định")
+        raise HTTPException(status_code=500, detail=f"Không thể lưu biểu mẫu lên GitHub: {err_msg}")
+
+
 @app.post("/api/merge")
 @app.post("/merge")
 async def merge_files(
     data_file: UploadFile = File(...),
-    template_file: Optional[UploadFile] = File(None), # 💡 Hỗ trợ upload file mẫu custom
+    template_file: Optional[UploadFile] = File(None),
     export_mode: str = Form("zip"),
     filename_column: Optional[str] = Form(None)
 ):
     if not data_file.filename.endswith(".xlsx"):
         raise HTTPException(status_code=400, detail="Tệp dữ liệu phải có định dạng .xlsx")
 
-    # Đọc bytes của tệp template tùy chọn gửi từ client
     custom_template_bytes = None
     if template_file and template_file.filename.endswith(".docx"):
         custom_template_bytes = await template_file.read()
@@ -160,7 +227,7 @@ async def merge_files(
         headers = [str(cell).strip() if cell is not None else f"Column_{i}" for i, cell in enumerate(rows[0])]
         data_rows = rows[1:]
 
-        # Lọc danh sách dữ liệu hợp lệ (xử lý TrangThai)
+        # Lọc danh sách dữ liệu hợp lệ dựa trên cột TrangThai
         valid_rows = []
         for row in data_rows:
             row_dict = {h: val for h, val in zip(headers, row)}
@@ -174,7 +241,7 @@ async def merge_files(
         if not valid_rows:
             raise HTTPException(status_code=400, detail="Không có dòng dữ liệu hợp lệ để xử lý!")
 
-        # CHẾ ĐỘ 1: XUẤT 1 FILE WORD DUY NHẤT
+        # CHẾ ĐỘ 1: XUẤT 1 FILE WORD DUY NHẤT (SINGLE DOC)
         if export_mode == "single_doc":
             merged_doc = Document()
             for idx, row_dict in enumerate(valid_rows):
@@ -206,7 +273,7 @@ async def merge_files(
                 headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged.docx"}
             )
 
-        # CHẾ ĐỘ 2: XUẤT TỆP ZIP
+        # CHẾ ĐỘ 2: XUẤT TỆP ZIP (NHIỀU FILE WORD)
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
