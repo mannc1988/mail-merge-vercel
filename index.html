@@ -200,7 +200,18 @@
     document.getElementById('uploadTemplateForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fileInput = document.getElementById('newTemplateFile');
-        if (!fileInput.files[0]) return;
+        
+        // Kiểm tra xem đã chọn file chưa bằng SweetAlert2
+        if (!fileInput.files || !fileInput.files[0]) {
+            Swal.fire({
+                title: 'Chưa Chọn File!',
+                text: 'Vui lòng chọn một tệp biểu mẫu (.docx) trước khi tải lên.',
+                icon: 'warning',
+                confirmButtonColor: '#ffc107',
+                confirmButtonText: 'Đã hiểu'
+            });
+            return;
+        }
 
         const formData = new FormData();
         formData.append('template_file', fileInput.files[0]);
@@ -233,7 +244,6 @@
             });
         }
     });
-
     // 3. Xem trước dữ liệu Excel bằng DataTables
     document.getElementById('dataFile').addEventListener('change', function(e) {
         const file = e.target.files[0];
@@ -291,11 +301,26 @@
     document.getElementById('mergeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const dataFile = document.getElementById('dataFile').files[0];
-        const templateFile = document.getElementById('templateFile').files[0];
+        const dataFileInput = document.getElementById('dataFile');
+        const templateFileInput = document.getElementById('templateFile');
         const filenameColumn = document.getElementById('filenameColumn').value.trim();
         const exportMode = document.getElementById('exportMode').value;
         const submitBtn = document.getElementById('submitBtn');
+
+        // Bắt lỗi bằng SweetAlert2 thay vì ô thông báo "Please select a file"
+        if (!dataFileInput.files || !dataFileInput.files[0]) {
+            Swal.fire({
+                title: 'Vui Lòng Chọn Tệp Excel!',
+                text: 'Bạn chưa tải lên tệp dữ liệu Excel (.xlsx) để thực hiện trộn.',
+                icon: 'warning',
+                confirmButtonColor: '#0d6efd',
+                confirmButtonText: 'Chọn tệp ngay'
+            });
+            return;
+        }
+
+        const dataFile = dataFileInput.files[0];
+        const templateFile = templateFileInput.files ? templateFileInput.files[0] : null;
 
         const formData = new FormData();
         formData.append('data_file', dataFile);
