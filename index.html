@@ -210,7 +210,7 @@
             if (jsonData.length > 0) {
                 if (dataTableInstance) {
                     dataTableInstance.destroy();
-                    \$('#excelDataTable').empty();
+                    $('#excelDataTable').empty();
                 }
 
                 const headers = jsonData[0];
@@ -232,7 +232,7 @@
                 document.getElementById('excelDataTable').innerHTML = `<thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody>`;
                 document.getElementById('previewCard').classList.remove('d-none');
 
-                dataTableInstance = \$('#excelDataTable').DataTable({
+                dataTableInstance = $('#excelDataTable').DataTable({
                     language: {
                         search: "<i class='fa-solid fa-magnifying-glass me-1'></i>Tìm kiếm:",
                         lengthMenu: "Hiển thị _MENU_ dòng",
