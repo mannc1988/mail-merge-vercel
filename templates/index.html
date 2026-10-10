@@ -61,8 +61,8 @@
                 <div class="col-md-6">
                     <label class="form-label fw-semibold"><i class="fa-solid fa-file-export me-2"></i>Định dạng xuất kết quả:</label>
                     <select id="exportMode" class="form-select">
-                        <option value="zip"><i class="fa-solid fa-file-zipper"></i> Xuất từng file riêng lẻ đóng gói ZIP</option>
-                        <option value="single_doc"><i class="fa-solid fa-file-word"></i> Trộn tất cả gộp vào 1 file Word duy nhất</option>
+                        <option value="zip">Xuất từng file riêng lẻ đóng gói ZIP</option>
+                        <option value="single_doc">Trộn tất cả gộp vào 1 file Word duy nhất</option>
                     </select>
                 </div>
             </div>
@@ -88,7 +88,7 @@
     </div>
 </div>
 
-<!-- Scripts -->
+<!-- JS Libraries -->
 <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
@@ -104,8 +104,8 @@
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = function(e) {
-            const data = new Uint8Array(e.target.result);
+        reader.onload = function(event) {
+            const data = new Uint8Array(event.target.result);
             const workbook = XLSX.read(data, {type: 'array'});
             const firstSheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[firstSheetName];
@@ -136,7 +136,7 @@
                 document.getElementById('excelDataTable').innerHTML = `<thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody>`;
                 document.getElementById('previewCard').classList.remove('d-none');
 
-                // Khởi tạo DataTables Plugin
+                // Khởi tạo DataTables
                 dataTableInstance = $('#excelDataTable').DataTable({
                     language: {
                         search: "<i class='fa-solid fa-magnifying-glass me-1'></i>Tìm kiếm:",
