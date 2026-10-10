@@ -13,9 +13,10 @@
     <style>
         body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .card-custom { border: none; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .upload-box { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; background-color: #f8fafc; transition: all 0.3s; }
-        .upload-box:hover { border-color: #0d6efd; background-color: #eff6ff; }
+        .upload-box { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 25px; text-align: center; background-color: #f8fafc; transition: all 0.3s; }
+        .upload-box:hover { border-color: #198754; background-color: #f0fdf4; }
         .table-responsive { max-height: 400px; }
+        .badge-special { font-size: 0.8rem; margin-right: 4px; }
     </style>
 </head>
 <body>
@@ -23,36 +24,29 @@
 <div class="container py-5">
     <!-- Header -->
     <div class="text-center mb-4">
-        <h2 class="fw-bold text-primary"><i class="fa-solid fa-file-word me-2"></i>Công Cụ Mail Merge Online</h2>
-        <p class="text-muted">Tự động trộn dữ liệu từ Excel vào tệp mẫu Word (<code class="bg-light px-2 py-1 rounded text-danger">{{TenBiên}}</code>)</p>
+        <h2 class="fw-bold text-success"><i class="fa-solid fa-file-excel me-2"></i>Trộn Biểu Mẫu Từ File Excel</h2>
+        <p class="text-muted">Hỗ trợ tự động định dạng: 
+            <span class="badge bg-primary badge-special">BieuMau</span>
+            <span class="badge bg-warning text-dark badge-special">TrangThai</span>
+            <span class="badge bg-info text-dark badge-special">DauPhanCachPhanNghin (VN/US)</span>
+        </p>
     </div>
 
     <!-- Main Card -->
     <div class="card card-custom p-4 mb-4">
         <form id="mergeForm">
             <div class="row g-4 mb-4">
-                <!-- Word File Upload -->
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold"><i class="fa-solid fa-file-word text-primary me-2"></i>1. Tệp Word Mẫu (.docx)</label>
+                <div class="col-12">
+                    <label class="form-label fw-semibold fs-5"><i class="fa-solid fa-file-excel text-success me-2"></i>Tải Lên Tệp Excel Dữ Liệu (.xlsx)</label>
                     <div class="upload-box">
-                        <i class="fa-solid fa-cloud-arrow-up fa-2x text-primary mb-2"></i>
-                        <input type="file" id="templateFile" accept=".docx" class="form-control" required />
-                        <small class="text-muted d-block mt-1">Chứa các nhãn dạng {{Ten}}, {{ChucVu}}...</small>
-                    </div>
-                </div>
-
-                <!-- Excel File Upload -->
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold"><i class="fa-solid fa-file-excel text-success me-2"></i>2. Tệp Excel Dữ Liệu (.xlsx)</label>
-                    <div class="upload-box">
-                        <i class="fa-solid fa-file-csv fa-2x text-success mb-2"></i>
-                        <input type="file" id="dataFile" accept=".xlsx" class="form-control" required />
-                        <small class="text-muted d-block mt-1">Hàng đầu tiên là tên cột tương ứng</small>
+                        <i class="fa-solid fa-file-csv fa-3x text-success mb-2"></i>
+                        <input type="file" id="dataFile" accept=".xlsx" class="form-control form-control-lg" required />
+                        <small class="text-muted d-block mt-2">Đảm bảo hàng đầu tiên chứa tên các cột tương ứng với nhãn {{TenBiên}} trong Word</small>
                     </div>
                 </div>
             </div>
 
-            <!-- Configuration Options -->
+            <!-- Configurations -->
             <div class="row g-3 mb-4 bg-light p-3 rounded">
                 <div class="col-md-6">
                     <label class="form-label fw-semibold"><i class="fa-solid fa-signature me-2"></i>Cột Excel dùng đặt tên file:</label>
@@ -69,7 +63,7 @@
 
             <!-- Submit Button -->
             <div class="text-center">
-                <button type="submit" id="submitBtn" class="btn btn-primary btn-lg px-5 shadow-sm">
+                <button type="submit" id="submitBtn" class="btn btn-success btn-lg px-5 shadow-sm">
                     <i class="fa-solid fa-gears me-2"></i>Thực Hiện Trộn Dữ Liệu
                 </button>
             </div>
@@ -98,7 +92,7 @@
 <script>
     let dataTableInstance = null;
 
-    // Đọc & Hiển thị Preview Excel bằng DataTables Plugin
+    // Xem trước Excel
     document.getElementById('dataFile').addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -136,7 +130,6 @@
                 document.getElementById('excelDataTable').innerHTML = `<thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody>`;
                 document.getElementById('previewCard').classList.remove('d-none');
 
-                // Khởi tạo DataTables
                 dataTableInstance = $('#excelDataTable').DataTable({
                     language: {
                         search: "<i class='fa-solid fa-magnifying-glass me-1'></i>Tìm kiếm:",
@@ -152,27 +145,30 @@
         reader.readAsArrayBuffer(file);
     });
 
-    // Submit Form Trộn dữ liệu
+    // Gửi Form xử lý
     document.getElementById('mergeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const templateFile = document.getElementById('templateFile').files[0];
         const dataFile = document.getElementById('dataFile').files[0];
         const filenameColumn = document.getElementById('filenameColumn').value.trim();
         const exportMode = document.getElementById('exportMode').value;
         const submitBtn = document.getElementById('submitBtn');
 
         const formData = new FormData();
-        formData.append('template_file', templateFile);
         formData.append('data_file', dataFile);
         formData.append('export_mode', exportMode);
         if (filenameColumn) formData.append('filename_column', filenameColumn);
 
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Đang xử lý dữ liệu...';
+        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Đang xử lý trộn dữ liệu...';
+
+        // Tự động nhận diện gọi API từ Vercel hay khi hosting trên GitHub Pages
+        const apiUrl = window.location.hostname.includes('github.io') 
+            ? 'https://mail-merge-vercel.vercel.app/api/merge' 
+            : '/api/merge';
 
         try {
-            const response = await fetch('/api/merge', {
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 body: formData
             });
