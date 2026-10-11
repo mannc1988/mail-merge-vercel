@@ -1,6 +1,5 @@
 import io
 import os
-import mimetypes
 import base64
 import zipfile
 import requests
@@ -10,8 +9,7 @@ from typing import Optional, Any
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from spire.doc import Document as SpireDocument, FileFormat as DocFileFormat
-from spire.xls import Workbook as SpireWorkbook, FileFormat as XlsFileFormat
+from docx import Document
 import openpyxl
 
 app = FastAPI()
@@ -30,30 +28,27 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 def create_default_template_docx_bytes() -> bytes:
     """Tự động tạo tệp Word mẫu nếu thiếu file trên server."""
-    doc = SpireDocument()
-    section = doc.AddSection()
+    doc = Document()
+    doc.add_heading("GIẤY XÁC NHẬN / THÔNG BÁO", level=1)
     
-    p_title = section.AddParagraph()
-    p_title.AppendText("GIẤY XÁC NHẬN / THÔNG BÁO")
+    p = doc.add_paragraph("Kính gửi ông/bà: ")
+    p.add_run("{{HoTen}}").bold = True
     
-    p1 = section.AddParagraph()
-    p1.AppendText("Kính gửi ông/bà: {{HoTen}}")
+    p2 = doc.add_paragraph()
+    p2.add_run("Ngày sinh: {{NgaySinh}}\n")
+    p2.add_run("Chức vụ: {{ChucVu}}\n")
+    p2.add_run("Số tiền thanh toán: {{SoTien}} VNĐ")
     
-    p2 = section.AddParagraph()
-    p2.AppendText("Ngày sinh: {{NgaySinh}}\nChức vụ: {{ChucVu}}\nSố tiền thanh toán: {{SoTien}} VNĐ")
-    
-    p3 = section.AddParagraph()
-    p3.AppendText("\nTrân trọng cảm ơn!")
+    doc.add_paragraph("\nTrân trọng cảm ơn!")
     
     stream = io.BytesIO()
-    doc.SaveToStream(stream, DocFileFormat.Docx)
-    doc.Close()
+    doc.save(stream)
     stream.seek(0)
     return stream.getvalue()
 
 
 def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
-    """Định dạng dữ liệu số tiền, ngày tháng."""
+    """Định dạng dữ liệu số tiền, ngày tháng và văn bản."""
     if val is None:
         return ""
 
@@ -97,11 +92,27 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
     return str(val)
 
 
-def replace_placeholders_spire(doc: SpireDocument, replacements: dict):
-    """Thay thế {{Key}} trong Word bằng Spire.Doc Engine."""
-    for key, val in replacements.items():
-        placeholder = f"{{{{{key}}}}}"
-        doc.Replace(placeholder, str(val), False, True)
+def replace_placeholders_in_doc(doc: Document, replacements: dict):
+    """Thay thế {{Key}} trong văn bản và bảng biểu."""
+    for p in doc.paragraphs:
+        for key, val in replacements.items():
+            placeholder = f"{{{{{key}}}}}"
+            if placeholder in p.text:
+                p.text = p.text.replace(placeholder, str(val))
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    for key, val in replacements.items():
+                        placeholder = f"{{{{{key}}}}}"
+                        if placeholder in p.text:
+                            p.text = p.text.replace(placeholder, str(val))
+
+
+def append_document(target_doc: Document, source_doc: Document):
+    for element in source_doc.element.body:
+        target_doc.element.body.append(element)
 
 
 def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Optional[bytes] = None) -> bytes:
@@ -109,6 +120,9 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
         return custom_bytes
 
     filename = str(template_name).strip() if template_name and str(template_name).strip() else "template.docx"
+    if not filename.endswith(".docx") and not filename.endswith(".pdf"):
+        filename += ".docx"
+
     possible_paths = [
         Path(__file__).resolve().parent.parent / "templates" / filename,
         Path(__file__).resolve().parent.parent / filename,
@@ -121,6 +135,15 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
             with open(path, "rb") as f:
                 return f.read()
 
+    default_paths = [
+        Path(__file__).resolve().parent.parent / "template.docx",
+        Path("template.docx")
+    ]
+    for path in default_paths:
+        if path.exists():
+            with open(path, "rb") as f:
+                return f.read()
+
     return create_default_template_docx_bytes()
 
 
@@ -128,7 +151,9 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
 def read_root():
     possible_paths = [
         Path(__file__).resolve().parent.parent / "index.html",
-        Path("index.html")
+        Path("index.html"),
+        Path(__file__).resolve().parent.parent / "templates" / "index.html",
+        Path("templates/index.html")
     ]
     for path in possible_paths:
         if path.exists():
@@ -143,12 +168,13 @@ def list_templates():
     templates_dir = Path(__file__).resolve().parent.parent / "templates"
     if templates_dir.exists():
         for f in templates_dir.glob("*.*"):
-            templates.add(f.name)
+            if f.suffix.lower() in [".docx", ".pdf"]:
+                templates.add(f.name)
             
     root_dir = Path(__file__).resolve().parent.parent
     if root_dir.exists():
         for f in root_dir.glob("*.*"):
-            if f.suffix.lower() in [".docx", ".pdf", ".xlsx", ".png", ".jpg", ".jpeg"]:
+            if f.suffix.lower() in [".docx", ".pdf"]:
                 templates.add(f.name)
 
     if not templates:
@@ -157,72 +183,14 @@ def list_templates():
     return {"templates": sorted(list(templates))}
 
 
-# 🎯 API XEM TỆP TỪ SERVER: RENDER TRỰC TIẾP QUA SPIRE (OFFICE) HOẶC NATIVE (PDF/ẢNH)
-@app.get("/api/preview-spire-remote")
-def preview_spire_remote(name: str):
-    file_bytes = get_template_bytes(template_name=name)
-    ext = Path(name).suffix.lower()
-
-    # 1. Word -> Render trực tiếp HTML qua Spire.Doc Engine
-    if ext in [".docx", ".doc"]:
-        doc = SpireDocument()
-        doc.LoadFromStream(io.BytesIO(file_bytes), DocFileFormat.Docx)
-        html_stream = io.BytesIO()
-        doc.SaveToStream(html_stream, DocFileFormat.Html)
-        doc.Close()
-        html_stream.seek(0)
-        return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
-
-    # 2. Excel -> Render trực tiếp HTML qua Spire.XLS Engine
-    elif ext in [".xlsx", ".xls"]:
-        workbook = SpireWorkbook()
-        workbook.LoadFromStream(io.BytesIO(file_bytes))
-        html_stream = io.BytesIO()
-        workbook.SaveToStream(html_stream, XlsFileFormat.HTML)
-        workbook.Dispose()
-        html_stream.seek(0)
-        return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
-
-    # 3. PDF & Ảnh -> Trả về Media gốc
-    mime_type, _ = mimetypes.guess_type(name)
-    return Response(content=file_bytes, media_type=mime_type or "application/octet-stream")
-
-
-# 🎯 API XEM TỆP LOCAL TẢI LÊN: RENDER TRỰC TIẾP QUA SPIRE
-@app.post("/api/preview-spire-local")
-async def preview_spire_local(file: UploadFile = File(...)):
-    ext = Path(file.filename).suffix.lower()
-    file_bytes = await file.read()
-
-    if ext in [".docx", ".doc"]:
-        doc = SpireDocument()
-        doc.LoadFromStream(io.BytesIO(file_bytes), DocFileFormat.Docx)
-        html_stream = io.BytesIO()
-        doc.SaveToStream(html_stream, DocFileFormat.Html)
-        doc.Close()
-        html_stream.seek(0)
-        return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
-
-    elif ext in [".xlsx", ".xls"]:
-        workbook = SpireWorkbook()
-        workbook.LoadFromStream(io.BytesIO(file_bytes))
-        html_stream = io.BytesIO()
-        workbook.SaveToStream(html_stream, XlsFileFormat.HTML)
-        workbook.Dispose()
-        html_stream.seek(0)
-        return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
-
-    mime_type = file.content_type or mimetypes.guess_type(file.filename)[0]
-    return Response(content=file_bytes, media_type=mime_type or "application/octet-stream")
-
-
 @app.get("/api/get-template-file")
 def get_template_file(name: str):
     template_bytes = get_template_bytes(template_name=name)
+    media_type = "application/pdf" if name.lower().endswith(".pdf") else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     return Response(
         content=template_bytes,
-        media_type="application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename={name}"}
+        media_type=media_type,
+        headers={"Content-Disposition": f"inline; filename={name}"}
     )
 
 
@@ -260,8 +228,11 @@ def download_sample_excel():
 
 @app.post("/api/upload-template")
 async def upload_template_to_github(template_file: UploadFile = File(...)):
+    if not (template_file.filename.endswith(".docx") or template_file.filename.endswith(".pdf")):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận tệp biểu mẫu định dạng .docx hoặc .pdf!")
+
     if not GITHUB_TOKEN:
-        raise HTTPException(status_code=500, detail="Chưa cấu hình GITHUB_TOKEN!")
+        raise HTTPException(status_code=500, detail="Chưa cấu hình biến môi trường GITHUB_TOKEN trên Vercel!")
 
     filename = template_file.filename.strip()
     file_bytes = await template_file.read()
@@ -338,8 +309,7 @@ async def merge_files(
             raise HTTPException(status_code=400, detail="Không có dòng dữ liệu hợp lệ để xử lý!")
 
         if export_mode == "single_doc":
-            merged_doc = SpireDocument()
-            
+            merged_doc = Document()
             for idx, row_dict in enumerate(valid_rows):
                 num_fmt = str(row_dict.get("DauPhanCachPhanNghin", "VN") or "VN").strip().upper()
 
@@ -350,26 +320,23 @@ async def merge_files(
                 template_name = str(row_dict.get("BieuMau", "") or "").strip()
                 template_bytes = get_template_bytes(template_name, custom_template_bytes)
 
-                doc_temp = SpireDocument()
-                doc_temp.LoadFromStream(io.BytesIO(template_bytes), DocFileFormat.Docx)
-                
-                replace_placeholders_spire(doc_temp, replacements)
+                doc_stream = io.BytesIO(template_bytes)
+                doc = Document(doc_stream)
+                replace_placeholders_in_doc(doc, replacements)
 
-                for i in range(doc_temp.Sections.Count):
-                    sec = doc_temp.Sections.get_Item(i).Clone()
-                    merged_doc.Sections.Add(sec)
+                if idx > 0:
+                    merged_doc.add_page_break()
 
-                doc_temp.Close()
+                append_document(merged_doc, doc)
 
             output_stream = io.BytesIO()
-            merged_doc.SaveToStream(output_stream, DocFileFormat.Docx)
-            merged_doc.Close()
+            merged_doc.save(output_stream)
             output_stream.seek(0)
 
             return Response(
                 content=output_stream.getvalue(),
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged_Spire.docx"}
+                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged.docx"}
             )
 
         else:
@@ -385,10 +352,9 @@ async def merge_files(
                     template_name = str(row_dict.get("BieuMau", "") or "").strip()
                     template_bytes = get_template_bytes(template_name, custom_template_bytes)
 
-                    doc = SpireDocument()
-                    doc.LoadFromStream(io.BytesIO(template_bytes), DocFileFormat.Docx)
-                    
-                    replace_placeholders_spire(doc, replacements)
+                    doc_stream = io.BytesIO(template_bytes)
+                    doc = Document(doc_stream)
+                    replace_placeholders_in_doc(doc, replacements)
 
                     out_filename = f"Document_{idx}.docx"
                     if filename_column and filename_column in replacements and replacements[filename_column]:
@@ -397,18 +363,16 @@ async def merge_files(
                             out_filename = f"{safe_name}_{idx}.docx"
 
                     output_doc_stream = io.BytesIO()
-                    doc.SaveToStream(output_doc_stream, DocFileFormat.Docx)
-                    doc.Close()
+                    doc.save(output_doc_stream)
                     output_doc_stream.seek(0)
-                    
                     zip_file.writestr(out_filename, output_doc_stream.getvalue())
 
             zip_buffer.seek(0)
             return Response(
                 content=zip_buffer.getvalue(),
                 media_type="application/zip",
-                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Results_Spire.zip"}
+                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Results.zip"}
             )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi xử lý Spire: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Lỗi xử lý: {str(e)}")
