@@ -14,11 +14,53 @@
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
     <style>
         body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .card-custom { border: none; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        
+        /* Session Card & Collapse Custom Styling */
+        .session-card {
+            background: #ffffff;
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .session-header {
+            background: #ffffff;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .session-header:hover {
+            background: #f8fafc;
+        }
+        .btn-toggle-session {
+            background: #f1f5f9;
+            border: none;
+            color: #64748b;
+            font-size: 0.9rem;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .btn-toggle-session:hover {
+            background: #e2e8f0;
+            color: #1e293b;
+        }
+
         .upload-box { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; background-color: #f8fafc; transition: all 0.3s; }
         .upload-box:hover { border-color: #198754; background-color: #f0fdf4; }
-        .table-responsive { max-height: 400px; }
         .badge-special { font-size: 0.8rem; margin-right: 4px; }
+        .help-icon { cursor: pointer; transition: transform 0.2s; }
+        .help-icon:hover { transform: scale(1.2); }
+        #docPreviewContainer { min-height: 350px; max-height: 600px; overflow-y: auto; padding: 20px; background: #fff; border: 1px solid #dee2e6; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -27,103 +69,223 @@
     <!-- Header -->
     <div class="text-center mb-4">
         <h2 class="fw-bold text-success"><i class="fa-solid fa-file-excel me-2"></i>Trộn Biểu Mẫu Word & Excel</h2>
-        <p class="text-muted">Hỗ trợ tự động định dạng: 
+        <p class="text-muted">Hỗ trợ định dạng & xem trước Inline: 
             <span class="badge bg-primary badge-special">BieuMau</span>
             <span class="badge bg-warning text-dark badge-special">TrangThai</span>
             <span class="badge bg-info text-dark badge-special">DauPhanCachPhanNghin (VN/US)</span>
         </p>
+
+        <!-- Nút Điều Khiển Nhanh Thu Nhỏ / Mở Rộng Tất Cả Các Section -->
+        <div class="d-flex justify-content-center gap-2 mt-3">
+            <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm" onclick="expandAllSessions()">
+                <i class="fa-solid fa-angles-down me-1"></i>Mở rộng tất cả
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm" onclick="collapseAllSessions()">
+                <i class="fa-solid fa-angles-up me-1"></i>Thu nhỏ tất cả
+            </button>
+        </div>
     </div>
 
-    <!-- Section: Tải Tệp Mẫu Tham Khảo -->
-    <div class="card card-custom p-3 mb-4 bg-light border-start border-4 border-success">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-            <div>
-                <h6 class="fw-bold mb-1 text-dark"><i class="fa-solid fa-download me-2 text-success"></i>Tải Tệp Mẫu Tham Khảo:</h6>
-                <small class="text-muted">Tải về tệp mẫu Word và Excel chuẩn để làm dữ liệu thử nghiệm.</small>
+    <!-- SECTION 1: Tải Tệp Mẫu Tham Khảo -->
+    <div class="session-card mb-4 border-start border-4 border-success">
+        <div class="session-header bg-light" onclick="toggleSession('sec-sample')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fa-solid fa-download text-success fs-5"></i>
+                <h6 class="fw-bold mb-0 text-dark">
+                    Tải Tệp Mẫu Tham Khảo
+                    <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="event.stopPropagation(); showHelp('sample')" title="Xem hướng dẫn tệp mẫu"></i>
+                </h6>
             </div>
-            <div class="d-flex gap-2">
-                <button type="button" onclick="downloadSample('template')" class="btn btn-outline-primary btn-sm">
-                    <i class="fa-solid fa-file-word me-1"></i>Tải Word Mẫu (.docx)
-                </button>
-                <button type="button" onclick="downloadSample('excel')" class="btn btn-outline-success btn-sm">
-                    <i class="fa-solid fa-file-excel me-1"></i>Tải Excel Mẫu (.xlsx)
-                </button>
+            <button type="button" class="btn-toggle-session" id="btn-toggle-sec-sample" title="Thu nhỏ / Mở rộng">
+                <i class="fa-solid fa-chevron-up"></i>
+            </button>
+        </div>
+        <div class="session-body collapse show p-3" id="sec-sample">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <small class="text-muted">Tải về tệp mẫu Word và Excel chuẩn để làm dữ liệu thử nghiệm.</small>
+                <div class="d-flex gap-2">
+                    <button type="button" onclick="downloadSample('template')" class="btn btn-outline-primary btn-sm">
+                        <i class="fa-solid fa-file-word me-1"></i>Tải Word Mẫu (.docx)
+                    </button>
+                    <button type="button" onclick="downloadSample('excel')" class="btn btn-outline-success btn-sm">
+                        <i class="fa-solid fa-file-excel me-1"></i>Tải Excel Mẫu (.xlsx)
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Card 1: Upload Biểu Mẫu Mới Lên GitHub -->
-    <div class="card card-custom p-4 mb-4">
-        <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Tải Lên Biểu Mẫu Mới (Lưu Vào GitHub)</h5>
-        <form id="uploadTemplateForm">
-            <div class="row g-2 align-items-start">
-                <div class="col-md-8">
-                    <input type="file" id="newTemplateFile" accept=".docx" class="form-control"/>
-                    <small class="text-muted d-block mt-1">Tệp Word <code>.docx</code> sẽ được lưu vĩnh viễn vào thư mục <code>templates/</code> trên GitHub.</small>
-                </div>
-                <div class="col-md-4">
-                    <button type="submit" id="uploadBtn" class="btn btn-primary w-100">
-                        <i class="fa-solid fa-upload me-2"></i>Lưu Biểu Mẫu Lên GitHub
-                    </button>
-                </div>
+    <!-- SECTION 2: Upload Biểu Mẫu Lên GitHub -->
+    <div class="session-card mb-4">
+        <div class="session-header" onclick="toggleSession('sec-upload')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fa-solid fa-cloud-arrow-up text-primary fs-5"></i>
+                <h5 class="fw-bold mb-0 text-primary">
+                    Tải Lên Biểu Mẫu Mới (Lưu Vào GitHub)
+                    <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="event.stopPropagation(); showHelp('upload_github')" title="Gợi ý chức năng"></i>
+                </h5>
             </div>
-        </form>
+            <button type="button" class="btn-toggle-session" id="btn-toggle-sec-upload" title="Thu nhỏ / Mở rộng">
+                <i class="fa-solid fa-chevron-up"></i>
+            </button>
+        </div>
+        <div class="session-body collapse show p-4" id="sec-upload">
+            <form id="uploadTemplateForm">
+                <div class="row g-2 align-items-start">
+                    <div class="col-md-8">
+                        <div class="input-group">
+                            <input type="file" id="newTemplateFile" accept=".docx" class="form-control" />
+                            <button class="btn btn-outline-secondary" type="button" onclick="previewSelectedFile('newTemplateFile')">
+                                <i class="fa-solid fa-eye me-1"></i>Xem trước
+                            </button>
+                        </div>
+                        <small class="text-muted d-block mt-1">Tệp Word <code>.docx</code> sẽ được lưu vĩnh viễn vào thư mục <code>templates/</code> trên GitHub.</small>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" id="uploadBtn" class="btn btn-primary w-100">
+                            <i class="fa-solid fa-upload me-2"></i>Lưu Biểu Mẫu Lên GitHub
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 
-    <!-- Card 2: Form Trộn Dữ Liệu Excel & Word -->
-    <div class="card card-custom p-4 mb-4">
-        <h5 class="fw-bold text-success mb-3"><i class="fa-solid fa-gears me-2"></i>Trộn Dữ Liệu Mail Merge</h5>
-        <form id="mergeForm">
-            <div class="row g-4 mb-4">
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold"><i class="fa-solid fa-file-excel text-success me-2"></i>1. Tệp Excel Dữ Liệu (.xlsx) <span class="text-danger">*</span></label>
-                    <div class="upload-box">
-                        <i class="fa-solid fa-file-csv fa-2x text-success mb-2"></i>
-                        <input type="file" id="dataFile" accept=".xlsx" class="form-control"/>
-                        <small class="text-muted d-block mt-1">Hàng 1 chứa tên các cột tương ứng {{TenBiên}} trong Word</small>
-                    </div>
-                </div>
-
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold"><i class="fa-solid fa-file-word text-primary me-2"></i>2. Tệp Word Mẫu Tùy Chỉnh (.docx)</label>
-                    <div class="upload-box">
-                        <i class="fa-solid fa-file-word fa-2x text-primary mb-2"></i>
-                        <input type="file" id="templateFile" accept=".docx" class="form-control" />
-                        <small class="text-muted d-block mt-1">Tùy chọn (Bỏ trống nếu muốn dùng mẫu lưu trên server)</small>
-                    </div>
-                </div>
+    <!-- SECTION 3: Danh Sách Biểu Mẫu Hệ Thống -->
+    <div class="session-card mb-4">
+        <div class="session-header" onclick="toggleSession('sec-list')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fa-solid fa-folder-open text-warning fs-5"></i>
+                <h5 class="fw-bold mb-0 text-dark">
+                    Danh Sách Biểu Mẫu Hệ Thống
+                    <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="event.stopPropagation(); showHelp('list_templates')" title="Gợi ý chức năng"></i>
+                </h5>
             </div>
-
-            <div class="row g-3 mb-4 bg-light p-3 rounded">
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold"><i class="fa-solid fa-signature me-2"></i>Cột Excel dùng đặt tên file:</label>
-                    <input type="text" id="filenameColumn" placeholder="Ví dụ: HoTen hoặc MaSV (Tùy chọn)" class="form-control" />
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-semibold"><i class="fa-solid fa-file-export me-2"></i>Định dạng xuất kết quả:</label>
-                    <select id="exportMode" class="form-select">
-                        <option value="zip">Xuất từng file riêng lẻ đóng gói ZIP</option>
-                        <option value="single_doc">Trộn tất cả gộp vào 1 file Word duy nhất</option>
-                    </select>
-                </div>
-            </div>
-
-            <div class="text-center">
-                <button type="submit" id="submitBtn" class="btn btn-success btn-lg px-5 shadow-sm">
-                    <i class="fa-solid fa-gears me-2"></i>Thực Hiện Trộn Dữ Liệu
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary me-2" onclick="event.stopPropagation(); loadTemplateList()">
+                    <i class="fa-solid fa-rotate me-1"></i>Làm mới
+                </button>
+                <button type="button" class="btn-toggle-session" id="btn-toggle-sec-list" title="Thu nhỏ / Mở rộng">
+                    <i class="fa-solid fa-chevron-up"></i>
                 </button>
             </div>
-        </form>
+        </div>
+        <div class="session-body collapse show p-4" id="sec-list">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle border mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 50px;">STT</th>
+                            <th>Tên Biểu Mẫu (.docx)</th>
+                            <th class="text-center" style="width: 220px;">Thao Tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="templateListTableBody">
+                        <tr>
+                            <td colspan="3" class="text-center py-3 text-muted">
+                                <i class="fa-solid fa-spinner fa-spin me-2"></i>Đang tải danh sách biểu mẫu...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
-    <!-- Excel Preview Section -->
-    <div id="previewCard" class="card card-custom p-4 d-none">
-        <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-table me-2"></i>Xem Trước Dữ Liệu Excel (DataTables)</h5>
-        <div class="table-responsive">
-            <table id="excelDataTable" class="table table-striped table-hover table-bordered w-100">
-                <thead><tr id="tableHeader"></tr></thead>
-                <tbody id="tableBody"></tbody>
-            </table>
+    <!-- SECTION 4: Form Trộn Dữ Liệu Mail Merge -->
+    <div class="session-card mb-4">
+        <div class="session-header" onclick="toggleSession('sec-merge')">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fa-solid fa-gears text-success fs-5"></i>
+                <h5 class="fw-bold mb-0 text-success">
+                    Trộn Dữ Liệu Mail Merge
+                    <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="event.stopPropagation(); showHelp('merge')" title="Gợi ý cách trộn dữ liệu"></i>
+                </h5>
+            </div>
+            <button type="button" class="btn-toggle-session" id="btn-toggle-sec-merge" title="Thu nhỏ / Mở rộng">
+                <i class="fa-solid fa-chevron-up"></i>
+            </button>
+        </div>
+        <div class="session-body collapse show p-4" id="sec-merge">
+            <form id="mergeForm">
+                <div class="row g-4 mb-4">
+                    <!-- Excel File -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">
+                            <i class="fa-solid fa-file-excel text-success me-2"></i>1. Tệp Excel Dữ Liệu (.xlsx)
+                            <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="showHelp('excel_structure')" title="Cấu trúc file Excel"></i>
+                        </label>
+                        <div class="upload-box">
+                            <i class="fa-solid fa-file-csv fa-2x text-success mb-2"></i>
+                            <input type="file" id="dataFile" accept=".xlsx" class="form-control mb-2" />
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="previewSelectedFile('dataFile')">
+                                <i class="fa-solid fa-eye me-1"></i>Xem Trước Excel Inline
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Word File Custom -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">
+                            <i class="fa-solid fa-file-word text-primary me-2"></i>2. Tệp Word Mẫu Tùy Chỉnh (.docx)
+                            <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="showHelp('custom_word')" title="Gợi ý chọn Word mẫu"></i>
+                        </label>
+                        <div class="upload-box">
+                            <i class="fa-solid fa-file-word fa-2x text-primary mb-2"></i>
+                            <input type="file" id="templateFile" accept=".docx" class="form-control mb-2" />
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="previewSelectedFile('templateFile')">
+                                <i class="fa-solid fa-eye me-1"></i>Xem Trước Word Inline
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configurations -->
+                <div class="row g-3 mb-4 bg-light p-3 rounded">
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">
+                            <i class="fa-solid fa-signature me-2"></i>Cột Excel dùng đặt tên file:
+                            <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="showHelp('filename_col')" title="Gợi ý cột tên file"></i>
+                        </label>
+                        <input type="text" id="filenameColumn" placeholder="Ví dụ: HoTen hoặc MaSV (Tùy chọn)" class="form-control" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">
+                            <i class="fa-solid fa-file-export me-2"></i>Định dạng xuất kết quả:
+                            <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="showHelp('export_mode')" title="Gợi ý chế độ xuất file"></i>
+                        </label>
+                        <select id="exportMode" class="form-select">
+                            <option value="zip">Xuất từng file riêng lẻ đóng gói ZIP</option>
+                            <option value="single_doc">Trộn tất cả gộp vào 1 file Word duy nhất</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="text-center">
+                    <button type="submit" id="submitBtn" class="btn btn-success btn-lg px-5 shadow-sm">
+                        <i class="fa-solid fa-gears me-2"></i>Thực Hiện Trộn Dữ Liệu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Inline Preview File -->
+<div class="modal fade" id="filePreviewModal" tabindex="-1" aria-labelledby="filePreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="filePreviewModalLabel"><i class="fa-solid fa-eye me-2"></i>Xem Trước Nội Dung Tệp</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div id="docPreviewContainer"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
         </div>
     </div>
 </div>
@@ -134,19 +296,235 @@
 <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<!-- SweetAlert2 JS -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 
 <script>
-    let dataTableInstance = null;
-
     function getApiUrl(endpoint) {
         return window.location.hostname.includes('github.io') 
             ? `https://mail-merge-vercel.vercel.app${endpoint}` 
             : endpoint;
     }
 
-    // 1. Hàm Tải Tệp Mẫu Bắt Lỗi Bằng SweetAlert2
+    String.prototype.endswith = function(suffix) {
+        return this.indexOf(suffix, this.length - suffix.length) !== -1;
+    };
+
+    // ⚡ CHỨC NĂNG THU NHỎ / MỞ RỘNG CARD (SESSION)
+    function toggleSession(sessionId) {
+        const sessionBody = document.getElementById(sessionId);
+        const btnIcon = document.querySelector(`#btn-toggle-${sessionId} i`);
+
+        if (!sessionBody) return;
+
+        if (sessionBody.classList.contains('show')) {
+            sessionBody.classList.remove('show');
+            if (btnIcon) {
+                btnIcon.classList.remove('fa-chevron-up');
+                btnIcon.classList.add('fa-chevron-down');
+            }
+        } else {
+            sessionBody.classList.add('show');
+            if (btnIcon) {
+                btnIcon.classList.remove('fa-chevron-down');
+                btnIcon.classList.add('fa-chevron-up');
+            }
+        }
+    }
+
+    function expandAllSessions() {
+        document.querySelectorAll('.session-body').forEach(body => body.classList.add('show'));
+        document.querySelectorAll('.btn-toggle-session i').forEach(icon => {
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-up');
+        });
+    }
+
+    function collapseAllSessions() {
+        document.querySelectorAll('.session-body').forEach(body => body.classList.remove('show'));
+        document.querySelectorAll('.btn-toggle-session i').forEach(icon => {
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        });
+    }
+
+    // 💡 HỆ THỐNG GỢI Ý & HƯỚNG DẪN CHI TIẾT
+    function showHelp(topic) {
+        const helps = {
+            'sample': {
+                title: '💡 Tệp Mẫu Tham Khảo',
+                html: 'Tải về tệp <b>Word</b> (.docx) chứa nhãn <code>{{HoTen}}</code>, <code>{{SoTien}}</code>... và tệp <b>Excel</b> (.xlsx) cấu hình chuẩn để thử nghiệm trộn dữ liệu ngay lập tức.'
+            },
+            'upload_github': {
+                title: '💡 Lưu Biểu Mẫu Lên GitHub',
+                html: 'Cho phép bạn lưu biểu mẫu Word (.docx) trực tiếp vào thư mục <code>templates/</code> trên GitHub Repository. Biểu mẫu này sẽ được lưu cố định trên server và có thể áp dụng cho các lần trộn dữ liệu sau bằng cách điền tên file vào cột <code>BieuMau</code> trong Excel.'
+            },
+            'list_templates': {
+                title: '💡 Danh Sách Biểu Mẫu Hệ Thống',
+                html: 'Liệt kê toàn bộ các tệp mẫu Word đang lưu trên Server/GitHub. Bạn có thể nhấn <b>Xem</b> để kiểm tra trực tiếp nội dung hoặc bấm <b>Tải về</b> để chỉnh sửa.'
+            },
+            'excel_structure': {
+                title: '💡 Cấu Trúc File Excel Chuẩn',
+                html: '• <b>Hàng 1:</b> Tên tiêu đề cột (trùng tên với nhãn <code>{{Nhãn}}</code> trong file Word).<br>' +
+                      '• <b>Cột BieuMau:</b> Chỉ định tệp Word mẫu áp dụng cho dòng đó (VD: <code>ThongBao.docx</code>).<br>' +
+                      '• <b>Cột TrangThai:</b> Bỏ qua dòng nếu để <code>Ẩn</code>, <code>Draft</code>, <code>0</code>.<br>' +
+                      '• <b>Cột DauPhanCachPhanNghin:</b> Điền <code>VN</code> (15.000.000,75) hoặc <code>US</code> (15,000,000.75).'
+            },
+            'custom_word': {
+                title: '💡 Biểu Mẫu Word Tùy Chỉnh',
+                html: 'Nếu bạn tải lên 1 tệp Word ở ô này, hệ thống sẽ <b>ưu tiên dùng biểu mẫu này</b> cho tất cả các dòng dữ liệu trong file Excel (bỏ qua cột <code>BieuMau</code> trong Excel).'
+            },
+            'filename_col': {
+                title: '💡 Đặt Tên File Tự Động',
+                html: 'Nhập tên tiêu đề cột trong file Excel (VD: <code>HoTen</code> hoặc <code>MaSV</code>). Khi xuất file riêng lẻ trong tệp ZIP, các file Word sẽ được đặt tên tự động theo giá trị của cột này (VD: <code>NguyenVanA_1.docx</code>).'
+            },
+            'export_mode': {
+                title: '💡 Chế Độ Xuất Kết Quả',
+                html: '• <b>Đóng gói ZIP:</b> Tạo từng tệp Word riêng lẻ cho từng người/dòng dữ liệu.<br>' +
+                      '• <b>Gộp 1 file Word:</b> Trộn tất cả kết quả gộp nối tiếp vào duy nhất 1 tệp Word (mỗi kết quả cách nhau bằng Ngắt trang - Page Break).'
+            },
+            'merge': {
+                title: '💡 Quy Trình Trộn Dữ Liệu',
+                html: '1. Chọn file Excel dữ liệu.<br>2. (Tùy chọn) Chọn file Word mẫu nếu không dùng mẫu lưu sẵn trên server.<br>3. Nhấn <b>Thực Hiện Trộn Dữ Liệu</b>, kết quả sẽ tự động tải về máy sau vài giây.'
+            }
+        };
+
+        if (helps[topic]) {
+            Swal.fire({
+                title: helps[topic].title,
+                html: `<div class="text-start">${helps[topic].html}</div>`,
+                icon: 'info',
+                confirmButtonText: 'Đã hiểu',
+                confirmButtonColor: '#198754'
+            });
+        }
+    }
+
+    // 1. Tải danh sách toàn bộ biểu mẫu từ Server/GitHub
+    async function loadTemplateList() {
+        const tbody = document.getElementById('templateListTableBody');
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Đang lấy danh sách biểu mẫu...</td></tr>';
+
+        try {
+            const res = await fetch(getApiUrl('/api/list-templates'));
+            if (!res.ok) throw new Error('Không thể lấy danh sách biểu mẫu');
+            const data = await res.json();
+            
+            if (!data.templates || data.templates.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3 text-muted">Chưa có biểu mẫu nào trong hệ thống.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            data.templates.forEach((name, idx) => {
+                html += `
+                <tr>
+                    <td class="fw-bold text-secondary">${idx + 1}</td>
+                    <td>
+                        <i class="fa-solid fa-file-word text-primary me-2"></i>
+                        <span class="fw-semibold text-dark">${name}</span>
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-primary" onclick="viewRemoteTemplate('${name}')">
+                                <i class="fa-solid fa-eye me-1"></i>Xem
+                            </button>
+                            <button type="button" class="btn btn-outline-success" onclick="downloadRemoteTemplate('${name}')">
+                                <i class="fa-solid fa-download me-1"></i>Tải về
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        } catch (err) {
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center py-3 text-danger"><i class="fa-solid fa-triangle-exclamation me-1"></i>${err.message}</td></tr>`;
+        }
+    }
+
+    // 2. Xem trực tiếp Biểu Mẫu từ xa (Inline View)
+    async function viewRemoteTemplate(filename) {
+        const container = document.getElementById('docPreviewContainer');
+        container.innerHTML = '<div class="text-center py-5"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary"></i><p class="mt-2">Đang tải biểu mẫu từ máy chủ...</p></div>';
+
+        const modal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
+        modal.show();
+
+        try {
+            const res = await fetch(getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`));
+            if (!res.ok) throw new Error('Không thể tải tệp biểu mẫu!');
+
+            const arrayBuffer = await res.arrayBuffer();
+            mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
+                .then(function(result) {
+                    container.innerHTML = result.value || '<p class="text-muted">Biểu mẫu không có nội dung văn bản.</p>';
+                })
+                .catch(function(err) {
+                    container.innerHTML = `<div class="alert alert-danger">Lỗi xem trước Word: ${err.message}</div>`;
+                });
+        } catch (err) {
+            container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+        }
+    }
+
+    // 3. Tải tệp Biểu Mẫu từ xa về máy
+    function downloadRemoteTemplate(filename) {
+        window.location.href = getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`);
+    }
+
+    // 4. Xem trước tệp local
+    function previewSelectedFile(inputId) {
+        const input = document.getElementById(inputId);
+        if (!input.files || !input.files[0]) {
+            Swal.fire({
+                title: 'Chưa Chọn File!',
+                text: 'Vui lòng chọn một tệp trước khi bấm xem trước.',
+                icon: 'warning',
+                confirmButtonColor: '#ffc107',
+                confirmButtonText: 'Đã hiểu'
+            });
+            return;
+        }
+
+        const file = input.files[0];
+        const fileName = file.name.toLowerCase();
+        const container = document.getElementById('docPreviewContainer');
+        container.innerHTML = '<div class="text-center py-5"><i class="fa-solid fa-spinner fa-spin fa-2x text-success"></i><p class="mt-2">Đang tải nội dung tệp...</p></div>';
+
+        const previewModal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
+        previewModal.show();
+
+        if (fileName.endswith('.docx')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                mammoth.convertToHtml({ arrayBuffer: e.target.result })
+                    .then(function(result) {
+                        container.innerHTML = result.value || '<p class="text-muted">Tệp Word trống.</p>';
+                    })
+                    .catch(function(err) {
+                        container.innerHTML = `<div class="alert alert-danger">Lỗi Word: ${err.message}</div>`;
+                    });
+            };
+            reader.readAsArrayBuffer(file);
+        } else if (fileName.endswith('.xlsx')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const htmlTable = XLSX.utils.sheet_to_html(firstSheet, { header: '', footer: '' });
+                container.innerHTML = `<div class="table-responsive">${htmlTable}</div>`;
+                $('#docPreviewContainer table').addClass('table table-striped table-hover table-bordered w-100');
+            };
+            reader.readAsArrayBuffer(file);
+        } else if (fileName.endswith('.pdf')) {
+            const fileURL = URL.createObjectURL(file);
+            container.innerHTML = `<iframe src="${fileURL}" width="100%" height="500px" style="border:none;"></iframe>`;
+        } else {
+            container.innerHTML = `<div class="alert alert-warning">Định dạng tệp không hỗ trợ xem trước.</div>`;
+        }
+    }
+
+    // Tải tệp mẫu
     async function downloadSample(type) {
         const isWord = type === 'template';
         const endpoint = isWord ? '/api/download-sample/template' : '/api/download-sample/excel';
@@ -161,14 +539,7 @@
 
         try {
             const res = await fetch(getApiUrl(endpoint));
-            if (!res.ok) {
-                let errText = 'Lỗi tải tệp mẫu';
-                try {
-                    const errJson = await res.json();
-                    errText = errJson.detail || errText;
-                } catch(e) {}
-                throw new Error(errText);
-            }
+            if (!res.ok) throw new Error('Không thể tải tệp mẫu!');
 
             const blob = await res.blob();
             const downloadUrl = window.URL.createObjectURL(blob);
@@ -196,19 +567,16 @@
         }
     }
 
-    // 2. Upload Biểu Mẫu Lên GitHub
+    // Upload Lên GitHub
     document.getElementById('uploadTemplateForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fileInput = document.getElementById('newTemplateFile');
-        
-        // Kiểm tra xem đã chọn file chưa bằng SweetAlert2
         if (!fileInput.files || !fileInput.files[0]) {
             Swal.fire({
                 title: 'Chưa Chọn File!',
-                text: 'Vui lòng chọn một tệp biểu mẫu (.docx) trước khi tải lên.',
+                text: 'Vui lòng chọn tệp biểu mẫu (.docx) trước khi tải lên.',
                 icon: 'warning',
-                confirmButtonColor: '#ffc107',
-                confirmButtonText: 'Đã hiểu'
+                confirmButtonColor: '#ffc107'
             });
             return;
         }
@@ -226,7 +594,7 @@
         try {
             const res = await fetch(getApiUrl('/api/upload-template'), { method: 'POST', body: formData });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || 'Lỗi không thể tải tệp lên!');
+            if (!res.ok) throw new Error(data.detail || 'Lỗi tải tệp lên!');
 
             Swal.fire({
                 title: 'Thành Công!',
@@ -235,6 +603,7 @@
                 confirmButtonColor: '#198754'
             });
             fileInput.value = '';
+            loadTemplateList();
         } catch (err) {
             Swal.fire({
                 title: 'Lỗi Tải Lên!',
@@ -244,60 +613,8 @@
             });
         }
     });
-    // 3. Xem trước dữ liệu Excel bằng DataTables
-    document.getElementById('dataFile').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const data = new Uint8Array(event.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
-
-            if (jsonData.length > 0) {
-                if (dataTableInstance) {
-                    dataTableInstance.destroy();
-                    $('#excelDataTable').empty();
-                }
-
-                const headers = jsonData[0];
-                const rows = jsonData.slice(1);
-
-                let headerHtml = '<tr>';
-                headers.forEach(h => headerHtml += `<th>${h || ''}</th>`);
-                headerHtml += '</tr>';
-
-                let bodyHtml = '';
-                rows.forEach(r => {
-                    if (r.length > 0) {
-                        bodyHtml += '<tr>';
-                        headers.forEach((_, idx) => bodyHtml += `<td>${r[idx] !== undefined ? r[idx] : ''}</td>`);
-                        bodyHtml += '</tr>';
-                    }
-                });
-
-                document.getElementById('excelDataTable').innerHTML = `<thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody>`;
-                document.getElementById('previewCard').classList.remove('d-none');
-
-                dataTableInstance = $('#excelDataTable').DataTable({
-                    language: {
-                        search: "<i class='fa-solid fa-magnifying-glass me-1'></i>Tìm kiếm:",
-                        lengthMenu: "Hiển thị _MENU_ dòng",
-                        info: "Đang xem _START_ đến _END_ trong tổng số _TOTAL_ dòng",
-                        paginate: { first: "Đầu", last: "Cuối", next: "Sau", previous: "Trước" }
-                    },
-                    pageLength: 5,
-                    lengthMenu: [5, 10, 25, 50]
-                });
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    });
-
-    // 4. Trộn dữ liệu Mail Merge
+    // Trộn Dữ Liệu
     document.getElementById('mergeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
@@ -307,30 +624,27 @@
         const exportMode = document.getElementById('exportMode').value;
         const submitBtn = document.getElementById('submitBtn');
 
-        // Bắt lỗi bằng SweetAlert2 thay vì ô thông báo "Please select a file"
         if (!dataFileInput.files || !dataFileInput.files[0]) {
             Swal.fire({
                 title: 'Vui Lòng Chọn Tệp Excel!',
-                text: 'Bạn chưa tải lên tệp dữ liệu Excel (.xlsx) để thực hiện trộn.',
+                text: 'Bạn chưa tải lên tệp dữ liệu Excel (.xlsx).',
                 icon: 'warning',
-                confirmButtonColor: '#0d6efd',
-                confirmButtonText: 'Chọn tệp ngay'
+                confirmButtonColor: '#0d6efd'
             });
             return;
         }
 
-        const dataFile = dataFileInput.files[0];
-        const templateFile = templateFileInput.files ? templateFileInput.files[0] : null;
-
         const formData = new FormData();
-        formData.append('data_file', dataFile);
+        formData.append('data_file', dataFileInput.files[0]);
         formData.append('export_mode', exportMode);
-        if (templateFile) formData.append('template_file', templateFile);
+        if (templateFileInput.files && templateFileInput.files[0]) {
+            formData.append('template_file', templateFileInput.files[0]);
+        }
         if (filenameColumn) formData.append('filename_column', filenameColumn);
 
         Swal.fire({
             title: 'Đang xử lý dữ liệu...',
-            text: 'Hệ thống đang trộn biểu mẫu, vui lòng chờ trong giây lát.',
+            text: 'Vui lòng chờ trong giây lát.',
             allowOutsideClick: false,
             didOpen: () => { Swal.showLoading(); }
         });
@@ -345,7 +659,7 @@
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.detail || 'Có lỗi xảy ra trong quá trình trộn!');
+                throw new Error(errData.detail || 'Có lỗi xảy ra!');
             }
 
             const blob = await response.blob();
@@ -359,7 +673,7 @@
 
             Swal.fire({
                 title: 'Thành Công!',
-                text: 'Trộn biểu mẫu thành công và đã tự động tải tệp kết quả về máy.',
+                text: 'Trộn biểu mẫu thành công!',
                 icon: 'success',
                 confirmButtonColor: '#198754'
             });
@@ -375,6 +689,8 @@
             submitBtn.disabled = false;
         }
     });
+
+    document.addEventListener('DOMContentLoaded', loadTemplateList);
 </script>
 </body>
 </html>
