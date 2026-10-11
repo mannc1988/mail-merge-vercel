@@ -1,7 +1,7 @@
 import io
 import os
 import uuid
-import mimetypes
+import mimetypes  # FIX LỖI: Import mimetypes bị thiếu
 import base64
 import zipfile
 import requests
@@ -12,7 +12,6 @@ from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from spire.doc import Document, FileFormat
-from spire.xls import Workbook, FileFormat as XlsFileFormat
 import openpyxl
 
 app = FastAPI()
@@ -28,38 +27,21 @@ app.add_middleware(
 GITHUB_REPO = "mannc1988/mail-merge-vercel"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
+# Thư mục chứa tệp tạm
 TEMP_PREVIEW_DIR = Path("/tmp/preview_files")
 TEMP_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
 
-# 📖 TỰ ĐỘNG TẠO VĂN BẢN HƯỚNG DẪN MẪU BẰNG SPIRE.DOC
-def create_user_guide_docx_bytes() -> bytes:
-    doc = Document()
-    sec = doc.AddSection()
-    
-    p_title = sec.AddParagraph()
-    p_title.AppendText("HƯỚNG DẪN SỬ DỤNG HỆ THỐNG MAIL MERGE")
-    
-    sec.AddParagraph().AppendText("1. Chuẩn bị file Word (.docx): Đặt các nhãn trong dấu {{Key}} như {{HoTen}}, {{SoTien}}.")
-    sec.AddParagraph().AppendText("2. Chuẩn bị file Excel (.xlsx): Dòng đầu chứa tên cột trùng với nhãn {{Key}}.")
-    sec.AddParagraph().AppendText("3. Cột BieuMau: Nhập tên file Word mẫu áp dụng cho từng dòng.")
-    sec.AddParagraph().AppendText("4. Cột TrangThai: Nhập 'Hiện' để trộn hoặc 'Ẩn' để bỏ qua.")
-    sec.AddParagraph().AppendText("5. Cột DauPhanCachPhanNghin: Điền 'VN' (10.000,00) hoặc 'US' (10,000.00).")
-    
-    stream = io.BytesIO()
-    doc.SaveToStream(stream, FileFormat.Docx)
-    doc.Close()
-    stream.seek(0)
-    return stream.getvalue()
-
-
 def create_default_template_docx_bytes() -> bytes:
+    """Tự động tạo tệp Word mẫu bằng Spire.Doc nếu thiếu file trên server."""
     doc = Document()
     section = doc.AddSection()
     
+    # Tiêu đề
     p_title = section.AddParagraph()
     p_title.AppendText("GIẤY XÁC NHẬN / THÔNG BÁO")
     
+    # Nội dung
     p1 = section.AddParagraph()
     p1.AppendText("Kính gửi ông/bà: {{HoTen}}")
     
@@ -77,6 +59,7 @@ def create_default_template_docx_bytes() -> bytes:
 
 
 def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
+    """Định dạng dữ liệu số tiền, ngày tháng và văn bản."""
     if val is None:
         return ""
 
@@ -121,6 +104,7 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
 
 
 def replace_placeholders_spire(doc: Document, replacements: dict):
+    """Thay thế {{Key}} trong toàn bộ văn bản Word bằng Spire.Doc Engine."""
     for key, val in replacements.items():
         placeholder = f"{{{{{key}}}}}"
         doc.Replace(placeholder, str(val), False, True)
@@ -144,41 +128,57 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
             with open(path, "rb") as f:
                 return f.read()
 
+    default_paths = [
+        Path(__file__).resolve().parent.parent / "template.docx",
+        Path("template.docx")
+    ]
+    for path in default_paths:
+        if path.exists():
+            with open(path, "rb") as f:
+                return f.read()
+
     return create_default_template_docx_bytes()
 
 
-@app.post("/api/preview-spire-local")
-async def preview_spire_local(file: UploadFile = File(...)):
-    ext = Path(file.filename).suffix.lower()
-    file_bytes = await file.read()
+@app.post("/api/upload-temp-preview")
+async def upload_temp_preview(file: UploadFile = File(...)):
+    """Lưu tệp tạm từ máy tính và trả về public URL cho MS Viewer."""
+    ext = Path(file.filename).suffix
+    unique_filename = f"{uuid.uuid4().hex}{ext}"
+    file_path = TEMP_PREVIEW_DIR / unique_filename
 
-    if ext in [".docx", ".doc"]:
-        doc = Document()
-        doc.LoadFromStream(io.BytesIO(file_bytes), FileFormat.Docx)
-        html_stream = io.BytesIO()
-        doc.SaveToStream(html_stream, FileFormat.Html)
-        doc.Close()
-        html_stream.seek(0)
-        return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
 
-    elif ext in [".xlsx", ".xls"]:
-        workbook = Workbook()
-        workbook.LoadFromStream(io.BytesIO(file_bytes))
-        html_stream = io.BytesIO()
-        workbook.SaveToStream(html_stream, XlsFileFormat.HTML)
-        workbook.Dispose()
-        html_stream.seek(0)
-        return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
-
-    mime_type = file.content_type or mimetypes.guess_type(file.filename)[0]
-    return Response(content=file_bytes, media_type=mime_type or "application/octet-stream")
+    return {"temp_filename": unique_filename}
 
 
-@app.get("/")
+@app.get("/api/temp-file/{filename}")
+def get_temp_file(filename: str):
+    """API cho phép Microsoft Office Viewer công khai tải tệp tạm."""
+    file_path = TEMP_PREVIEW_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Tệp tạm đã hết hạn hoặc không tồn tại")
+
+    with open(file_path, "rb") as f:
+        content = f.read()
+
+    mime_type, _ = mimetypes.guess_type(filename)
+    return Response(
+        content=content,
+        media_type=mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f"inline; filename={filename}"}
+    )
+
+
+@app.get("/", response_class=HTMLResponse)
 def read_root():
     possible_paths = [
         Path(__file__).resolve().parent.parent / "index.html",
-        Path("index.html")
+        Path("index.html"),
+        Path(__file__).resolve().parent.parent / "templates" / "index.html",
+        Path("templates/index.html")
     ]
     for path in possible_paths:
         if path.exists():
@@ -189,6 +189,7 @@ def read_root():
 
 @app.get("/api/list-templates")
 def list_templates():
+    """Hỗ trợ quét danh sách tất cả định dạng file mẫu trong hệ thống."""
     templates = set()
     templates_dir = Path(__file__).resolve().parent.parent / "templates"
     if templates_dir.exists():
@@ -215,17 +216,6 @@ def get_template_file(name: str):
         content=template_bytes,
         media_type=mime_type or "application/octet-stream",
         headers={"Content-Disposition": f"attachment; filename={name}"}
-    )
-
-
-# 📖 API TẢI TỆP HƯỚNG DẪN SỬ DỤNG
-@app.get("/api/download-guide-file")
-def download_guide_file():
-    guide_bytes = create_user_guide_docx_bytes()
-    return Response(
-        content=guide_bytes,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": "attachment; filename=Huong_Dan_Su_Dung_Mail_Merge.docx"}
     )
 
 
@@ -264,7 +254,7 @@ def download_sample_excel():
 @app.post("/api/upload-template")
 async def upload_template_to_github(template_file: UploadFile = File(...)):
     if not GITHUB_TOKEN:
-        raise HTTPException(status_code=500, detail="Chưa cấu hình GITHUB_TOKEN!")
+        raise HTTPException(status_code=500, detail="Chưa cấu hình biến môi trường GITHUB_TOKEN!")
 
     filename = template_file.filename.strip()
     file_bytes = await template_file.read()
@@ -340,6 +330,7 @@ async def merge_files(
         if not valid_rows:
             raise HTTPException(status_code=400, detail="Không có dòng dữ liệu hợp lệ để xử lý!")
 
+        # 1. XUẤT NỐI TIẾP VÀO 1 FILE WORD DUY NHẤT (SINGLE DOC)
         if export_mode == "single_doc":
             merged_doc = Document()
             
@@ -356,8 +347,10 @@ async def merge_files(
                 doc_temp = Document()
                 doc_temp.LoadFromStream(io.BytesIO(template_bytes), FileFormat.Docx)
                 
+                # Thực hiện thay thế các nhãn {{Key}} bằng Spire.Doc
                 replace_placeholders_spire(doc_temp, replacements)
 
+                # Gộp section từ doc_temp vào merged_doc
                 for i in range(doc_temp.Sections.Count):
                     sec = doc_temp.Sections.get_Item(i).Clone()
                     merged_doc.Sections.Add(sec)
@@ -375,6 +368,7 @@ async def merge_files(
                 headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged_Spire.docx"}
             )
 
+        # 2. XUẤT NHIỀU FILE WORD NÉN VÀO TỆP ZIP
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -391,6 +385,7 @@ async def merge_files(
                     doc = Document()
                     doc.LoadFromStream(io.BytesIO(template_bytes), FileFormat.Docx)
                     
+                    # Thay thế nhãn
                     replace_placeholders_spire(doc, replacements)
 
                     out_filename = f"Document_{idx}.docx"

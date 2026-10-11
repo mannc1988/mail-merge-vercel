@@ -103,11 +103,8 @@
             <span class="badge bg-info text-dark badge-special">DauPhanCachPhanNghin (VN/US)</span>
         </p>
 
-        <!-- Nút Điều Khiển Nhanh & Tải Hướng Dẫn -->
-        <div class="d-flex justify-content-center flex-wrap gap-2 mt-3">
-            <button type="button" class="btn btn-sm btn-info text-white shadow-sm" onclick="downloadGuideFile()">
-                <i class="fa-solid fa-book me-1"></i>Tải Tệp Hướng Dẫn (.docx)
-            </button>
+        <!-- Nút Điều Khiển Nhanh -->
+        <div class="d-flex justify-content-center gap-2 mt-3">
             <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm" onclick="expandAllSessions()">
                 <i class="fa-solid fa-angles-down me-1"></i>Mở rộng tất cả
             </button>
@@ -430,11 +427,6 @@
                 confirmButtonColor: '#198754'
             });
         }
-    }
-
-    // 📖 HÀM TẢI FILE HƯỚNG DẪN SỬ DỤNG .DOCX
-    function downloadGuideFile() {
-        window.location.href = getApiUrl('/api/download-guide-file');
     }
 
     async function loadTemplateList() {
