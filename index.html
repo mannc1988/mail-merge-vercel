@@ -472,31 +472,71 @@
 
     // 🔍 XEM TRỰC TIẾP GIỐNG HỆT BIỂU MẪU WORD GỐC TỪ SERVER
     async function viewRemoteTemplate(filename) {
-        const container = document.getElementById('docPreviewContainer');
-        container.innerHTML = '<div class="text-center py-5 text-white"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p class="mt-2">Đang tải và dựng lại giao diện Word gốc...</p></div>';
+    const container = document.getElementById('docPreviewContainer');
+    const ext = filename.split('.').pop().toLowerCase();
 
-        const modal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
-        modal.show();
+    // 1. Xác định đường dẫn file gốc từ GitHub Raw
+    const fileRawUrl = filename === 'template.docx' 
+        ? `${GITHUB_RAW_BASE}template.docx`
+        : `${GITHUB_RAW_BASE}templates/${encodeURIComponent(filename)}`;
 
-        try {
-            const res = await fetch(getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`));
-            if (!res.ok) throw new Error('Không thể tải tệp biểu mẫu!');
+    // 2. Hiển thị Modal và hiệu ứng chờ (Loading)
+    container.innerHTML = `
+        <div class="d-flex flex-column align-items-center justify-content-center py-5 text-muted">
+            <div class="spinner-border text-primary mb-2" role="status"></div>
+            <span>Đang tải tệp xem trước...</span>
+        </div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
+    modal.show();
 
+    try {
+        // A. XỬ LÝ ẢNH (Offline Blob URL)
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+            const res = await fetch(fileRawUrl);
+            if (!res.ok) throw new Error('Không thể tải hình ảnh!');
             const blob = await res.blob();
-            container.innerHTML = '';
-            
-            // Render file Word bằng thư viện docx-preview để giữ nguyên trang in & layout Word gốc
-            await docx.renderAsync(blob, container, null, {
-                className: "docx",
-                inWrapper: true,
-                ignoreWidth: false,
-                ignoreHeight: false,
-                experimental: true
-            });
-        } catch (err) {
-            container.innerHTML = `<div class="alert alert-danger m-3">Lỗi xem trước Word gốc: ${err.message}</div>`;
+            const blobUrl = URL.createObjectURL(blob);
+
+            container.innerHTML = `
+                <div class="d-flex align-items-center justify-content-center h-100 p-2">
+                    <img src="${blobUrl}" class="img-fluid rounded shadow-sm" style="max-height: 600px; object-fit: contain;" />
+                </div>
+            `;
+        } 
+        // B. XỬ LÝ FILE PDF (Offline Blob URL)
+        else if (ext === 'pdf') {
+            const res = await fetch(fileRawUrl);
+            if (!res.ok) throw new Error('Không thể tải tệp PDF!');
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+
+            container.innerHTML = `<iframe src="${blobUrl}" style="width: 100%; height: 600px; border: none;"></iframe>`;
+        } 
+        // C. XỬ LÝ FILE OFFICE (Word, Excel, PowerPoint -> MS Office Online Viewer)
+        else if (['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'].includes(ext)) {
+            const msOfficeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileRawUrl)}`;
+            container.innerHTML = `<iframe src="${msOfficeViewerUrl}" style="width: 100%; height: 600px; border: none;"></iframe>`;
+        } 
+        // D. CÁC ĐỊNH DẠNG KHÁC (Thuần văn bản như TXT, JSON, HTML...)
+        else {
+            const res = await fetch(fileRawUrl);
+            if (!res.ok) throw new Error('Không thể tải nội dung tệp!');
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+
+            container.innerHTML = `<iframe src="${blobUrl}" style="width: 100%; height: 600px; border: none;"></iframe>`;
         }
+
+    } catch (err) {
+        container.innerHTML = `
+            <div class="alert alert-danger m-3 d-flex align-items-center" role="alert">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                <div>Lỗi xem trước tệp: ${err.message}</div>
+            </div>
+        `;
     }
+}
 
     function downloadRemoteTemplate(filename) {
         window.location.href = getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`);
