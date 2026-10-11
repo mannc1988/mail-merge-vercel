@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from spire.doc import Document, FileFormat
 import openpyxl
+import uuid
 
 app = FastAPI()
 
@@ -24,6 +25,10 @@ app.add_middleware(
 
 GITHUB_REPO = "mannc1988/mail-merge-vercel"
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+
+# Thư mục chứa tệp tạm
+TEMP_PREVIEW_DIR = Path("/tmp/preview_files")
+TEMP_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def create_default_template_docx_bytes() -> bytes:
@@ -135,7 +140,36 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
 
     return create_default_template_docx_bytes()
 
+@app.post("/api/upload-temp-preview")
+async def upload_temp_preview(file: UploadFile = File(...)):
+    """Lưu tệp tạm từ máy tính và trả về public URL cho MS Viewer."""
+    ext = Path(file.filename).suffix
+    unique_filename = f"{uuid.uuid4().hex}{ext}"
+    file_path = TEMP_PREVIEW_DIR / unique_filename
 
+    content = await file.read()
+    with open(file_path, "wb") as f:
+        f.write(content)
+
+    return {"temp_filename": unique_filename}
+
+
+@app.get("/api/temp-file/{filename}")
+def get_temp_file(filename: str):
+    """API cho phép Microsoft Office Viewer công khai tải tệp tạm."""
+    file_path = TEMP_PREVIEW_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Tệp tạm đã hết hạn hoặc không tồn tại")
+
+    with open(file_path, "rb") as f:
+        content = f.read()
+
+    mime_type, _ = mimetypes.guess_type(filename)
+    return Response(
+        content=content,
+        media_type=mime_type or "application/octet-stream",
+        headers={"Content-Disposition": f"inline; filename={filename}"}
+    )
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     possible_paths = [

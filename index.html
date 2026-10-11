@@ -471,7 +471,7 @@
         window.location.href = getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`);
     }
 
-    async function previewSelectedFile(inputId) {
+    async function previewSelectedFile1(inputId) {
         const input = document.getElementById(inputId);
         if (!input.files || !input.files[0]) {
             Swal.fire({
@@ -522,7 +522,84 @@
             container.innerHTML = `<div class="alert alert-warning m-3">Định dạng tệp không hỗ trợ xem trước.</div>`;
         }
     }
+    async function previewSelectedFile(inputId) {
+        const input = document.getElementById(inputId);
+        if (!input.files || !input.files[0]) {
+            Swal.fire({
+                title: 'Chưa chọn tệp!',
+                text: 'Vui lòng chọn một tệp từ máy tính trước khi xem.',
+                icon: 'warning',
+                confirmButtonColor: '#ffc107',
+                confirmButtonText: 'Đã hiểu'
+            });
+            return;
+        }
 
+        const file = input.files[0];
+        const ext = file.name.split('.').pop().toLowerCase();
+        const container = document.getElementById('docPreviewContainer');
+
+        // Hiển thị Modal & hiệu ứng chờ Loading
+        container.innerHTML = `
+            <div class="d-flex flex-column align-items-center justify-content-center py-5 text-muted">
+                <div class="spinner-border text-primary mb-2" role="status"></div>
+                <span>Đang khởi tạo xem trước tệp...</span>
+            </div>
+        `;
+        const previewModal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
+        previewModal.show();
+
+        try {
+            // 1. XỬ LÝ HÌNH ẢNH (Xem Offline bằng Blob URL)
+            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+                const blobUrl = URL.createObjectURL(file);
+                container.innerHTML = `
+                    <div class="d-flex align-items-center justify-content-center h-100 p-2">
+                        <img src="${blobUrl}" class="img-fluid rounded shadow-sm" style="max-height: 600px; object-fit: contain;" />
+                    </div>
+                `;
+            } 
+            // 2. XỬ LÝ TỆP PDF (Xem Offline bằng Blob URL)
+            else if (ext === 'pdf') {
+                const blobUrl = URL.createObjectURL(file);
+                container.innerHTML = `<iframe src="${blobUrl}" style="width: 100%; height: 600px; border: none;"></iframe>`;
+            } 
+            // 3. XỬ LÝ TỆP OFFICE (.docx, .xlsx, .pptx...) -> XEM BẰNG MICROSOFT OFFICE VIEWER
+            else if (['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'].includes(ext)) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // Bước A: Tải file tạm lên Server
+                const uploadRes = await fetch(getApiUrl('/api/upload-temp-preview'), {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!uploadRes.ok) throw new Error('Không thể tạo liên kết tạm cho tệp!');
+                const uploadData = await uploadRes.json();
+
+                // Bước B: Tạo Public URL cho Microsoft Viewer
+                const publicFileUrl = `${window.location.origin}/api/temp-file/${uploadData.temp_filename}`;
+                const msOfficeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(publicFileUrl)}`;
+
+                // Bước C: Nhúng Iframe Microsoft Office Online Viewer
+                container.innerHTML = `<iframe src="${msOfficeViewerUrl}" style="width: 100%; height: 600px; border: none;"></iframe>`;
+            } 
+            // 4. CÁC TỆP KHÁC (TXT, CSV...)
+            else {
+                const blobUrl = URL.createObjectURL(file);
+                container.innerHTML = `<iframe src="${blobUrl}" style="width: 100%; height: 600px; border: none;"></iframe>`;
+            }
+
+        } catch (err) {
+            container.innerHTML = `
+                <div class="alert alert-danger m-3 d-flex align-items-center" role="alert">
+                    <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                    <div>Lỗi xem trước tệp: ${err.message}</div>
+                </div>
+            `;
+        }
+    }
     async function downloadSample(type) {
         const isWord = type === 'template';
         const endpoint = isWord ? '/api/download-sample/template' : '/api/download-sample/excel';
