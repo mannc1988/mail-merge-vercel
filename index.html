@@ -331,6 +331,7 @@
 <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
 
 <script>
+	const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/mannc1988/mail-merge-vercel/main/";
     function getApiUrl(endpoint) {
         return window.location.hostname.includes('github.io') 
             ? `https://mail-merge-vercel.vercel.app${endpoint}` 
