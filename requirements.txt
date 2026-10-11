@@ -5,3 +5,4 @@ Spire.XLS
 openpyxl
 python-multipart
 requests
+python-docx

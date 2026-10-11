@@ -11,9 +11,10 @@ from typing import Optional, Any
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from spire.doc import Document, FileFormat
+from spire.doc import Document as SpireDocument, FileFormat as SpireFileFormat
 from spire.xls import Workbook, FileFormat as XlsFileFormat
 import openpyxl
+import docx
 
 app = FastAPI()
 
@@ -34,7 +35,7 @@ TEMP_PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
 
 # 📖 TỰ ĐỘNG TẠO VĂN BẢN HƯỚNG DẪN MẪU BẰNG SPIRE.DOC
 def create_user_guide_docx_bytes() -> bytes:
-    doc = Document()
+    doc = SpireDocument()
     sec = doc.AddSection()
     
     p_title = sec.AddParagraph()
@@ -47,14 +48,14 @@ def create_user_guide_docx_bytes() -> bytes:
     sec.AddParagraph().AppendText("5. Cột DauPhanCachPhanNghin: Điền 'VN' (10.000,00) hoặc 'US' (10,000.00).")
     
     stream = io.BytesIO()
-    doc.SaveToStream(stream, FileFormat.Docx)
+    doc.SaveToStream(stream, SpireFileFormat.Docx)
     doc.Close()
     stream.seek(0)
     return stream.getvalue()
 
 
 def create_default_template_docx_bytes() -> bytes:
-    doc = Document()
+    doc = SpireDocument()
     section = doc.AddSection()
     
     p_title = section.AddParagraph()
@@ -70,7 +71,7 @@ def create_default_template_docx_bytes() -> bytes:
     p3.AppendText("\nTrân trọng cảm ơn!")
     
     stream = io.BytesIO()
-    doc.SaveToStream(stream, FileFormat.Docx)
+    doc.SaveToStream(stream, SpireFileFormat.Docx)
     doc.Close()
     stream.seek(0)
     return stream.getvalue()
@@ -120,10 +121,29 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
     return str(val)
 
 
-def replace_placeholders_spire(doc: Document, replacements: dict):
+# 🛠️ THAY THẾ PLACEHOLDER CHUẨN PYTHON-DOCX (GIỮ NGUYÊN ĐỊNH DẠNG)
+def replace_text_in_paragraph(paragraph, replacements: dict):
+    full_text = paragraph.text
+    has_replacement = False
     for key, val in replacements.items():
         placeholder = f"{{{{{key}}}}}"
-        doc.Replace(placeholder, str(val), False, True)
+        if placeholder in full_text:
+            full_text = full_text.replace(placeholder, str(val))
+            has_replacement = True
+            
+    if has_replacement:
+        paragraph.text = full_text
+
+
+def replace_placeholders_docx(doc: docx.Document, replacements: dict):
+    for p in doc.paragraphs:
+        replace_text_in_paragraph(p, replacements)
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    replace_text_in_paragraph(p, replacements)
 
 
 def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Optional[bytes] = None) -> bytes:
@@ -154,10 +174,10 @@ async def preview_spire_local(file: UploadFile = File(...)):
         file_bytes = await file.read()
 
         if ext in [".docx", ".doc"]:
-            doc = Document()
-            doc.LoadFromStream(io.BytesIO(file_bytes), FileFormat.Docx)
+            doc = SpireDocument()
+            doc.LoadFromStream(io.BytesIO(file_bytes), SpireFileFormat.Docx)
             html_stream = io.BytesIO()
-            doc.SaveToStream(html_stream, FileFormat.Html)
+            doc.SaveToStream(html_stream, SpireFileFormat.Html)
             doc.Close()
             html_stream.seek(0)
             return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
@@ -303,6 +323,7 @@ async def upload_template_to_github(template_file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Không thể lưu biểu mẫu lên GitHub: {err_msg}")
 
 
+# 🚀 ĐÃ SỬA: TRỘN DỮ LIỆU MAIL MERGE BẰNG PYTHON-DOCX THUẦN (KHÔNG BỊ CRASH SERVERLESS)
 @app.post("/api/merge")
 @app.post("/merge")
 async def merge_files(
@@ -344,7 +365,7 @@ async def merge_files(
             raise HTTPException(status_code=400, detail="Không có dòng dữ liệu hợp lệ để xử lý!")
 
         if export_mode == "single_doc":
-            merged_doc = Document()
+            merged_doc = docx.Document()
             
             for idx, row_dict in enumerate(valid_rows):
                 num_fmt = str(row_dict.get("DauPhanCachPhanNghin", "VN") or "VN").strip().upper()
@@ -356,26 +377,23 @@ async def merge_files(
                 template_name = str(row_dict.get("BieuMau", "") or "").strip()
                 template_bytes = get_template_bytes(template_name, custom_template_bytes)
 
-                doc_temp = Document()
-                doc_temp.LoadFromStream(io.BytesIO(template_bytes), FileFormat.Docx)
-                
-                replace_placeholders_spire(doc_temp, replacements)
+                doc_temp = docx.Document(io.BytesIO(template_bytes))
+                replace_placeholders_docx(doc_temp, replacements)
 
-                for i in range(doc_temp.Sections.Count):
-                    sec = doc_temp.Sections.get_Item(i).Clone()
-                    merged_doc.Sections.Add(sec)
+                if idx > 0:
+                    merged_doc.add_page_break()
 
-                doc_temp.Close()
+                for element in doc_temp.element.body:
+                    merged_doc.element.body.append(element)
 
             output_stream = io.BytesIO()
-            merged_doc.SaveToStream(output_stream, FileFormat.Docx)
-            merged_doc.Close()
+            merged_doc.save(output_stream)
             output_stream.seek(0)
 
             return Response(
                 content=output_stream.getvalue(),
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged_Spire.docx"}
+                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged.docx"}
             )
 
         else:
@@ -391,10 +409,8 @@ async def merge_files(
                     template_name = str(row_dict.get("BieuMau", "") or "").strip()
                     template_bytes = get_template_bytes(template_name, custom_template_bytes)
 
-                    doc = Document()
-                    doc.LoadFromStream(io.BytesIO(template_bytes), FileFormat.Docx)
-                    
-                    replace_placeholders_spire(doc, replacements)
+                    doc = docx.Document(io.BytesIO(template_bytes))
+                    replace_placeholders_docx(doc, replacements)
 
                     out_filename = f"Document_{idx}.docx"
                     if filename_column and filename_column in replacements and replacements[filename_column]:
@@ -403,8 +419,7 @@ async def merge_files(
                             out_filename = f"{safe_name}_{idx}.docx"
 
                     output_doc_stream = io.BytesIO()
-                    doc.SaveToStream(output_doc_stream, FileFormat.Docx)
-                    doc.Close()
+                    doc.save(output_doc_stream)
                     output_doc_stream.seek(0)
                     
                     zip_file.writestr(out_filename, output_doc_stream.getvalue())
@@ -413,8 +428,8 @@ async def merge_files(
             return Response(
                 content=zip_buffer.getvalue(),
                 media_type="application/zip",
-                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Results_Spire.zip"}
+                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Results.zip"}
             )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi xử lý Spire.Doc: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Lỗi xử lý Mail Merge: {str(e)}")
