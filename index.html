@@ -15,7 +15,6 @@
     <style>
         body { background-color: #f4f6f9; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
-        /* Session Card & Collapse Custom Styling */
         .session-card {
             background: #ffffff;
             border: none;
@@ -34,9 +33,7 @@
             user-select: none;
             border-bottom: 1px solid #f1f5f9;
         }
-        .session-header:hover {
-            background: #f8fafc;
-        }
+        .session-header:hover { background: #f8fafc; }
         .btn-toggle-session {
             background: #f1f5f9;
             border: none;
@@ -50,17 +47,32 @@
             justify-content: center;
             transition: all 0.2s;
         }
-        .btn-toggle-session:hover {
-            background: #e2e8f0;
-            color: #1e293b;
-        }
+        .btn-toggle-session:hover { background: #e2e8f0; color: #1e293b; }
 
         .upload-box { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; background-color: #f8fafc; transition: all 0.3s; }
         .upload-box:hover { border-color: #198754; background-color: #f0fdf4; }
         .badge-special { font-size: 0.8rem; margin-right: 4px; }
         .help-icon { cursor: pointer; transition: transform 0.2s; }
         .help-icon:hover { transform: scale(1.2); }
-        #docPreviewContainer { min-height: 350px; max-height: 600px; overflow-y: auto; padding: 20px; background: #fff; border: 1px solid #dee2e6; border-radius: 8px; }
+        
+        /* Container xem trước Word chuẩn trang in Word */
+        #docPreviewContainer { 
+            min-height: 400px; 
+            max-height: 650px; 
+            overflow-y: auto; 
+            padding: 20px; 
+            background: #787878; 
+            border-radius: 8px; 
+        }
+        .docx-wrapper {
+            background: #787878 !important;
+            padding: 20px !important;
+        }
+        .docx-wrapper > section.docx {
+            background: white !important;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3) !important;
+            margin-bottom: 20px !important;
+        }
     </style>
 </head>
 <body>
@@ -75,7 +87,7 @@
             <span class="badge bg-info text-dark badge-special">DauPhanCachPhanNghin (VN/US)</span>
         </p>
 
-        <!-- Nút Điều Khiển Nhanh Thu Nhỏ / Mở Rộng Tất Cả Các Section -->
+        <!-- Nút Điều Khiển Nhanh -->
         <div class="d-flex justify-content-center gap-2 mt-3">
             <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm" onclick="expandAllSessions()">
                 <i class="fa-solid fa-angles-down me-1"></i>Mở rộng tất cả
@@ -272,12 +284,12 @@
     </div>
 </div>
 
-<!-- Modal Inline Preview File -->
+<!-- Modal Xem Trước Trực Tiếp Layout Gốc Word/Excel/PDF -->
 <div class="modal fade" id="filePreviewModal" tabindex="-1" aria-labelledby="filePreviewModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title fw-bold" id="filePreviewModalLabel"><i class="fa-solid fa-eye me-2"></i>Xem Trước Nội Dung Tệp</h5>
+                <h5 class="modal-title fw-bold" id="filePreviewModalLabel"><i class="fa-solid fa-eye me-2"></i>Xem Trước Nội Dung Tệp Gốc</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-3">
@@ -297,7 +309,10 @@
 <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+
+<!-- JS Render Word (.docx) chuẩn layout gốc Microsoft Word -->
+<script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
 
 <script>
     function getApiUrl(endpoint) {
@@ -310,7 +325,6 @@
         return this.indexOf(suffix, this.length - suffix.length) !== -1;
     };
 
-    // ⚡ CHỨC NĂNG THU NHỎ / MỞ RỘNG CARD (SESSION)
     function toggleSession(sessionId) {
         const sessionBody = document.getElementById(sessionId);
         const btnIcon = document.querySelector(`#btn-toggle-${sessionId} i`);
@@ -348,7 +362,6 @@
         });
     }
 
-    // 💡 HỆ THỐNG GỢI Ý & HƯỚNG DẪN CHI TIẾT
     function showHelp(topic) {
         const helps = {
             'sample': {
@@ -400,7 +413,6 @@
         }
     }
 
-    // 1. Tải danh sách toàn bộ biểu mẫu từ Server/GitHub
     async function loadTemplateList() {
         const tbody = document.getElementById('templateListTableBody');
         tbody.innerHTML = '<tr><td colspan="3" class="text-center py-3 text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Đang lấy danh sách biểu mẫu...</td></tr>';
@@ -442,10 +454,10 @@
         }
     }
 
-    // 2. Xem trực tiếp Biểu Mẫu từ xa (Inline View)
+    // 🔍 XEM TRỰC TIẾP GIỐNG HỆT BIỂU MẪU WORD GỐC TỪ SERVER
     async function viewRemoteTemplate(filename) {
         const container = document.getElementById('docPreviewContainer');
-        container.innerHTML = '<div class="text-center py-5"><i class="fa-solid fa-spinner fa-spin fa-2x text-primary"></i><p class="mt-2">Đang tải biểu mẫu từ máy chủ...</p></div>';
+        container.innerHTML = '<div class="text-center py-5 text-white"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p class="mt-2">Đang tải và dựng lại giao diện Word gốc...</p></div>';
 
         const modal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
         modal.show();
@@ -454,26 +466,28 @@
             const res = await fetch(getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`));
             if (!res.ok) throw new Error('Không thể tải tệp biểu mẫu!');
 
-            const arrayBuffer = await res.arrayBuffer();
-            mammoth.convertToHtml({ arrayBuffer: arrayBuffer })
-                .then(function(result) {
-                    container.innerHTML = result.value || '<p class="text-muted">Biểu mẫu không có nội dung văn bản.</p>';
-                })
-                .catch(function(err) {
-                    container.innerHTML = `<div class="alert alert-danger">Lỗi xem trước Word: ${err.message}</div>`;
-                });
+            const blob = await res.blob();
+            container.innerHTML = '';
+            
+            // Render file Word bằng thư viện docx-preview để giữ nguyên trang in & layout Word gốc
+            await docx.renderAsync(blob, container, null, {
+                className: "docx",
+                inWrapper: true,
+                ignoreWidth: false,
+                ignoreHeight: false,
+                experimental: true
+            });
         } catch (err) {
-            container.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+            container.innerHTML = `<div class="alert alert-danger m-3">Lỗi xem trước Word gốc: ${err.message}</div>`;
         }
     }
 
-    // 3. Tải tệp Biểu Mẫu từ xa về máy
     function downloadRemoteTemplate(filename) {
         window.location.href = getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`);
     }
 
-    // 4. Xem trước tệp local
-    function previewSelectedFile(inputId) {
+    // 🔍 XEM TRỰC TIẾP FILE LOCAL (WORD/EXCEL/PDF) THEO ĐÚNG LAYOUT GỐC
+    async function previewSelectedFile(inputId) {
         const input = document.getElementById(inputId);
         if (!input.files || !input.files[0]) {
             Swal.fire({
@@ -489,42 +503,47 @@
         const file = input.files[0];
         const fileName = file.name.toLowerCase();
         const container = document.getElementById('docPreviewContainer');
-        container.innerHTML = '<div class="text-center py-5"><i class="fa-solid fa-spinner fa-spin fa-2x text-success"></i><p class="mt-2">Đang tải nội dung tệp...</p></div>';
+        container.innerHTML = '<div class="text-center py-5 text-white"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p class="mt-2">Đang dựng lại giao diện file gốc...</p></div>';
 
         const previewModal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
         previewModal.show();
 
+        // 1. Xem file Word gốc
         if (fileName.endswith('.docx')) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                mammoth.convertToHtml({ arrayBuffer: e.target.result })
-                    .then(function(result) {
-                        container.innerHTML = result.value || '<p class="text-muted">Tệp Word trống.</p>';
-                    })
-                    .catch(function(err) {
-                        container.innerHTML = `<div class="alert alert-danger">Lỗi Word: ${err.message}</div>`;
-                    });
-            };
-            reader.readAsArrayBuffer(file);
-        } else if (fileName.endswith('.xlsx')) {
+            try {
+                container.innerHTML = '';
+                await docx.renderAsync(file, container, null, {
+                    className: "docx",
+                    inWrapper: true,
+                    ignoreWidth: false,
+                    ignoreHeight: false,
+                    experimental: true
+                });
+            } catch(err) {
+                container.innerHTML = `<div class="alert alert-danger m-3">Không thể đọc file Word: ${err.message}</div>`;
+            }
+        } 
+        // 2. Xem file Excel gốc
+        else if (fileName.endswith('.xlsx')) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const htmlTable = XLSX.utils.sheet_to_html(firstSheet, { header: '', footer: '' });
-                container.innerHTML = `<div class="table-responsive">${htmlTable}</div>`;
-                $('#docPreviewContainer table').addClass('table table-striped table-hover table-bordered w-100');
+                container.innerHTML = `<div class="p-3 bg-white rounded shadow-sm table-responsive">${htmlTable}</div>`;
+                \$('#docPreviewContainer table').addClass('table table-striped table-hover table-bordered w-100');
             };
             reader.readAsArrayBuffer(file);
-        } else if (fileName.endswith('.pdf')) {
+        } 
+        // 3. Xem file PDF
+        else if (fileName.endswith('.pdf')) {
             const fileURL = URL.createObjectURL(file);
-            container.innerHTML = `<iframe src="${fileURL}" width="100%" height="500px" style="border:none;"></iframe>`;
+            container.innerHTML = `<iframe src="${fileURL}" width="100%" height="600px" style="border:none; border-radius: 8px;"></iframe>`;
         } else {
-            container.innerHTML = `<div class="alert alert-warning">Định dạng tệp không hỗ trợ xem trước.</div>`;
+            container.innerHTML = `<div class="alert alert-warning m-3">Định dạng tệp không hỗ trợ xem trước.</div>`;
         }
     }
 
-    // Tải tệp mẫu
     async function downloadSample(type) {
         const isWord = type === 'template';
         const endpoint = isWord ? '/api/download-sample/template' : '/api/download-sample/excel';
@@ -567,7 +586,6 @@
         }
     }
 
-    // Upload Lên GitHub
     document.getElementById('uploadTemplateForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const fileInput = document.getElementById('newTemplateFile');
@@ -614,7 +632,6 @@
         }
     });
 
-    // Trộn Dữ Liệu
     document.getElementById('mergeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
