@@ -454,49 +454,73 @@
         }
     }
 
-    // Xem tệp Word từ Server/GitHub
+ // 🔍 XEM TRỰC TIẾP GIỐNG HỆT BIỂU MẪU WORD GỐC TỪ SERVER
     async function viewRemoteTemplate(filename) {
-        const container = document.getElementById('docPreviewContainer');
-        const ext = filename.split('.').pop().toLowerCase();
-        const fileRawUrl = filename === 'template.docx' 
-            ? `${GITHUB_RAW_BASE}template.docx`
-            : `${GITHUB_RAW_BASE}templates/${encodeURIComponent(filename)}`;
+    const container = document.getElementById('docPreviewContainer');
+    const ext = filename.split('.').pop().toLowerCase();
 
+    // 1. Xác định đường dẫn file gốc từ GitHub Raw
+    const fileRawUrl = filename === 'template.docx' 
+        ? `${GITHUB_RAW_BASE}template.docx`
+        : `${GITHUB_RAW_BASE}templates/${encodeURIComponent(filename)}`;
+
+    // 2. Hiển thị Modal và hiệu ứng chờ (Loading)
+    container.innerHTML = `
+        <div class="d-flex flex-column align-items-center justify-content-center py-5 text-muted">
+            <div class="spinner-border text-primary mb-2" role="status"></div>
+            <span>Đang tải tệp xem trước...</span>
+        </div>
+    `;
+    const modal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
+    modal.show();
+
+    try {
+        // A. XỬ LÝ ẢNH (Offline Blob URL)
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) {
+            const res = await fetch(fileRawUrl);
+            if (!res.ok) throw new Error('Không thể tải hình ảnh!');
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+
+            container.innerHTML = `
+                <div class="d-flex align-items-center justify-content-center h-100 p-2">
+                    <img src="${blobUrl}" class="img-fluid rounded shadow-sm" style="max-height: 600px; object-fit: contain;" />
+                </div>
+            `;
+        } 
+        // B. XỬ LÝ FILE PDF (Offline Blob URL)
+        else if (ext === 'pdf') {
+            const res = await fetch(fileRawUrl);
+            if (!res.ok) throw new Error('Không thể tải tệp PDF!');
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+
+            container.innerHTML = `<iframe src="${blobUrl}" style="width: 100%; height: 600px; border: none;"></iframe>`;
+        } 
+        // C. XỬ LÝ FILE OFFICE (Word, Excel, PowerPoint -> MS Office Online Viewer)
+        else if (['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt'].includes(ext)) {
+            const msOfficeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileRawUrl)}`;
+            container.innerHTML = `<iframe src="${msOfficeViewerUrl}" style="width: 100%; height: 600px; border: none;"></iframe>`;
+        } 
+        // D. CÁC ĐỊNH DẠNG KHÁC (Thuần văn bản như TXT, JSON, HTML...)
+        else {
+            const res = await fetch(fileRawUrl);
+            if (!res.ok) throw new Error('Không thể tải nội dung tệp!');
+            const blob = await res.blob();
+            const blobUrl = URL.createObjectURL(blob);
+
+            container.innerHTML = `<iframe src="${blobUrl}" style="width: 100%; height: 600px; border: none;"></iframe>`;
+        }
+
+    } catch (err) {
         container.innerHTML = `
-            <div class="d-flex flex-column align-items-center justify-content-center py-5 text-white">
-                <div class="spinner-border text-light mb-2"></div>
-                <span>Đang tải tệp xem trước...</span>
+            <div class="alert alert-danger m-3 d-flex align-items-center" role="alert">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                <div>Lỗi xem trước tệp: ${err.message}</div>
             </div>
         `;
-        const modal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
-        modal.show();
-
-        try {
-            if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf'].includes(ext)) {
-                const res = await fetch(fileRawUrl);
-                if (!res.ok) throw new Error('Không thể tải tệp!');
-                const blob = await res.blob();
-                const blobUrl = URL.createObjectURL(blob);
-
-                if (ext === 'pdf') {
-                    container.innerHTML = `<iframe src="${blobUrl}"></iframe>`;
-                } else {
-                    container.innerHTML = `<div class="d-flex align-items-center justify-content-center h-100 p-2"><img src="${blobUrl}" class="img-fluid rounded" /></div>`;
-                }
-            } else if (ext === 'docx') {
-                const res = await fetch(getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`));
-                if (!res.ok) throw new Error('Không thể tải tệp biểu mẫu!');
-                const blob = await res.blob();
-                container.innerHTML = '';
-                await docx.renderAsync(blob, container, null, { className: "docx", inWrapper: true });
-            } else {
-                const msOfficeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileRawUrl)}`;
-                container.innerHTML = `<iframe src="${msOfficeViewerUrl}"></iframe>`;
-            }
-        } catch (err) {
-            container.innerHTML = `<div class="alert alert-danger m-3">Lỗi xem trước tệp: ${err.message}</div>`;
-        }
     }
+}
 
     function downloadRemoteTemplate(filename) {
         window.location.href = getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`);
