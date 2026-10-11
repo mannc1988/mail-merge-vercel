@@ -161,6 +161,40 @@ def read_root():
     raise HTTPException(status_code=404, detail="Không tìm thấy tệp index.html")
 
 
+@app.get("/api/list-templates")
+def list_templates():
+    """Lấy danh sách toàn bộ các tệp Word (.docx) hiện có trong thư mục templates và thư mục gốc."""
+    templates = set()
+    
+    # Quét thư mục templates/
+    templates_dir = Path(__file__).resolve().parent.parent / "templates"
+    if templates_dir.exists():
+        for f in templates_dir.glob("*.docx"):
+            templates.add(f.name)
+            
+    # Quét thư mục gốc
+    root_dir = Path(__file__).resolve().parent.parent
+    if root_dir.exists():
+        for f in root_dir.glob("*.docx"):
+            templates.add(f.name)
+
+    if not templates:
+        templates.add("template.docx")
+
+    return {"templates": sorted(list(templates))}
+
+
+@app.get("/api/get-template-file")
+def get_template_file(name: str):
+    """Lấy nội dung tệp biểu mẫu theo tên phục vụ cho chức năng Xem Inline và Tải về."""
+    template_bytes = get_template_bytes(template_name=name)
+    return Response(
+        content=template_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={name}"}
+    )
+
+
 @app.get("/api/download-sample/template")
 def download_sample_template():
     """Tải tệp Word mẫu (Tự động sinh nếu chưa có trên server)."""
