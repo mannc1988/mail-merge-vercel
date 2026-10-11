@@ -1,7 +1,6 @@
 fastapi
 uvicorn
 Spire.Doc
-Spire.XLS
 openpyxl
 python-multipart
 requests
