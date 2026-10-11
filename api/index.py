@@ -9,7 +9,7 @@ from typing import Optional, Any
 from fastapi import FastAPI, File, UploadFile, Form, HTTPException
 from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
-from docx import Document
+from spire.doc import Document, FileFormat
 import openpyxl
 
 app = FastAPI()
@@ -27,22 +27,27 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 
 def create_default_template_docx_bytes() -> bytes:
-    """Tự động tạo tệp Word mẫu nếu thiếu file trên server."""
+    """Tự động tạo tệp Word mẫu bằng Spire.Doc nếu thiếu file trên server."""
     doc = Document()
-    doc.add_heading("GIẤY XÁC NHẬN / THÔNG BÁO", level=1)
+    section = doc.AddSection()
     
-    p = doc.add_paragraph("Kính gửi ông/bà: ")
-    p.add_run("{{HoTen}}").bold = True
+    # Tiêu đề
+    p_title = section.AddParagraph()
+    p_title.AppendText("GIẤY XÁC NHẬN / THÔNG BÁO")
     
-    p2 = doc.add_paragraph()
-    p2.add_run("Ngày sinh: {{NgaySinh}}\n")
-    p2.add_run("Chức vụ: {{ChucVu}}\n")
-    p2.add_run("Số tiền thanh toán: {{SoTien}} VNĐ")
+    # Nội dung
+    p1 = section.AddParagraph()
+    p1.AppendText("Kính gửi ông/bà: {{HoTen}}")
     
-    doc.add_paragraph("\nTrân trọng cảm ơn!")
+    p2 = section.AddParagraph()
+    p2.AppendText("Ngày sinh: {{NgaySinh}}\nChức vụ: {{ChucVu}}\nSố tiền thanh toán: {{SoTien}} VNĐ")
+    
+    p3 = section.AddParagraph()
+    p3.AppendText("\nTrân trọng cảm ơn!")
     
     stream = io.BytesIO()
-    doc.save(stream)
+    doc.SaveToStream(stream, FileFormat.Docx)
+    doc.Close()
     stream.seek(0)
     return stream.getvalue()
 
@@ -92,27 +97,11 @@ def format_cell_value(val: Any, num_format_type: str = "VN") -> str:
     return str(val)
 
 
-def replace_placeholders_in_doc(doc: Document, replacements: dict):
-    """Thay thế {{Key}} trong văn bản và bảng biểu."""
-    for p in doc.paragraphs:
-        for key, val in replacements.items():
-            placeholder = f"{{{{{key}}}}}"
-            if placeholder in p.text:
-                p.text = p.text.replace(placeholder, str(val))
-
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for p in cell.paragraphs:
-                    for key, val in replacements.items():
-                        placeholder = f"{{{{{key}}}}}"
-                        if placeholder in p.text:
-                            p.text = p.text.replace(placeholder, str(val))
-
-
-def append_document(target_doc: Document, source_doc: Document):
-    for element in source_doc.element.body:
-        target_doc.element.body.append(element)
+def replace_placeholders_spire(doc: Document, replacements: dict):
+    """Thay thế {{Key}} trong toàn bộ văn bản Word bằng Spire.Doc Engine."""
+    for key, val in replacements.items():
+        placeholder = f"{{{{{key}}}}}"
+        doc.Replace(placeholder, str(val), False, True)
 
 
 def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Optional[bytes] = None) -> bytes:
@@ -120,7 +109,7 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
         return custom_bytes
 
     filename = str(template_name).strip() if template_name and str(template_name).strip() else "template.docx"
-    if not filename.endswith(".docx") and not filename.endswith(".pdf"):
+    if not filename.endswith(".docx"):
         filename += ".docx"
 
     possible_paths = [
@@ -167,15 +156,13 @@ def list_templates():
     templates = set()
     templates_dir = Path(__file__).resolve().parent.parent / "templates"
     if templates_dir.exists():
-        for f in templates_dir.glob("*.*"):
-            if f.suffix.lower() in [".docx", ".pdf"]:
-                templates.add(f.name)
+        for f in templates_dir.glob("*.docx"):
+            templates.add(f.name)
             
     root_dir = Path(__file__).resolve().parent.parent
     if root_dir.exists():
-        for f in root_dir.glob("*.*"):
-            if f.suffix.lower() in [".docx", ".pdf"]:
-                templates.add(f.name)
+        for f in root_dir.glob("*.docx"):
+            templates.add(f.name)
 
     if not templates:
         templates.add("template.docx")
@@ -186,11 +173,10 @@ def list_templates():
 @app.get("/api/get-template-file")
 def get_template_file(name: str):
     template_bytes = get_template_bytes(template_name=name)
-    media_type = "application/pdf" if name.lower().endswith(".pdf") else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     return Response(
         content=template_bytes,
-        media_type=media_type,
-        headers={"Content-Disposition": f"inline; filename={name}"}
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f"attachment; filename={name}"}
     )
 
 
@@ -228,8 +214,8 @@ def download_sample_excel():
 
 @app.post("/api/upload-template")
 async def upload_template_to_github(template_file: UploadFile = File(...)):
-    if not (template_file.filename.endswith(".docx") or template_file.filename.endswith(".pdf")):
-        raise HTTPException(status_code=400, detail="Chỉ chấp nhận tệp biểu mẫu định dạng .docx hoặc .pdf!")
+    if not template_file.filename.endswith(".docx"):
+        raise HTTPException(status_code=400, detail="Chỉ chấp nhận tệp biểu mẫu định dạng .docx!")
 
     if not GITHUB_TOKEN:
         raise HTTPException(status_code=500, detail="Chưa cấu hình biến môi trường GITHUB_TOKEN trên Vercel!")
@@ -308,8 +294,10 @@ async def merge_files(
         if not valid_rows:
             raise HTTPException(status_code=400, detail="Không có dòng dữ liệu hợp lệ để xử lý!")
 
+        # 1. XUẤT NỐI TIẾP VÀO 1 FILE WORD DUY NHẤT (SINGLE DOC)
         if export_mode == "single_doc":
             merged_doc = Document()
+            
             for idx, row_dict in enumerate(valid_rows):
                 num_fmt = str(row_dict.get("DauPhanCachPhanNghin", "VN") or "VN").strip().upper()
 
@@ -320,25 +308,31 @@ async def merge_files(
                 template_name = str(row_dict.get("BieuMau", "") or "").strip()
                 template_bytes = get_template_bytes(template_name, custom_template_bytes)
 
-                doc_stream = io.BytesIO(template_bytes)
-                doc = Document(doc_stream)
-                replace_placeholders_in_doc(doc, replacements)
+                doc_temp = Document()
+                doc_temp.LoadFromStream(io.BytesIO(template_bytes), FileFormat.Docx)
+                
+                # Thực hiện thay thế các nhãn {{Key}} bằng Spire.Doc
+                replace_placeholders_spire(doc_temp, replacements)
 
-                if idx > 0:
-                    merged_doc.add_page_break()
+                # Gộp section từ doc_temp vào merged_doc
+                for i in range(doc_temp.Sections.Count):
+                    sec = doc_temp.Sections.get_Item(i).Clone()
+                    merged_doc.Sections.Add(sec)
 
-                append_document(merged_doc, doc)
+                doc_temp.Close()
 
             output_stream = io.BytesIO()
-            merged_doc.save(output_stream)
+            merged_doc.SaveToStream(output_stream, FileFormat.Docx)
+            merged_doc.Close()
             output_stream.seek(0)
 
             return Response(
                 content=output_stream.getvalue(),
                 media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged.docx"}
+                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Merged_Spire.docx"}
             )
 
+        # 2. XUẤT NHIỀU FILE WORD NÉN VÀO TỆP ZIP
         else:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
@@ -352,9 +346,11 @@ async def merge_files(
                     template_name = str(row_dict.get("BieuMau", "") or "").strip()
                     template_bytes = get_template_bytes(template_name, custom_template_bytes)
 
-                    doc_stream = io.BytesIO(template_bytes)
-                    doc = Document(doc_stream)
-                    replace_placeholders_in_doc(doc, replacements)
+                    doc = Document()
+                    doc.LoadFromStream(io.BytesIO(template_bytes), FileFormat.Docx)
+                    
+                    # Thay thế nhãn
+                    replace_placeholders_spire(doc, replacements)
 
                     out_filename = f"Document_{idx}.docx"
                     if filename_column and filename_column in replacements and replacements[filename_column]:
@@ -363,16 +359,18 @@ async def merge_files(
                             out_filename = f"{safe_name}_{idx}.docx"
 
                     output_doc_stream = io.BytesIO()
-                    doc.save(output_doc_stream)
+                    doc.SaveToStream(output_doc_stream, FileFormat.Docx)
+                    doc.Close()
                     output_doc_stream.seek(0)
+                    
                     zip_file.writestr(out_filename, output_doc_stream.getvalue())
 
             zip_buffer.seek(0)
             return Response(
                 content=zip_buffer.getvalue(),
                 media_type="application/zip",
-                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Results.zip"}
+                headers={"Content-Disposition": "attachment; filename=Mail_Merge_Results_Spire.zip"}
             )
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi xử lý: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Lỗi xử lý Spire.Doc: {str(e)}")

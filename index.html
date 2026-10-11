@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Công cụ Mail Merge Trộn Biểu Mẫu (PDF, Spire.Doc, Excel)</title>
+    <title>Công cụ Mail Merge Trộn Biểu Mẫu Spire.Doc</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- FontAwesome 6 Icons -->
@@ -55,22 +55,18 @@
         .help-icon { cursor: pointer; transition: transform 0.2s; }
         .help-icon:hover { transform: scale(1.2); }
         
+        /* Container xem trước iframe Microsoft Office Viewer */
         #docPreviewContainer { 
-            min-height: 450px; 
-            max-height: 650px; 
-            overflow-y: auto; 
-            padding: 15px; 
-            background: #525659; 
+            height: 650px; 
+            width: 100%;
+            background: #f8fafc; 
             border-radius: 8px; 
+            overflow: hidden;
         }
-        .docx-wrapper {
-            background: #525659 !important;
-            padding: 20px !important;
-        }
-        .docx-wrapper > section.docx {
-            background: white !important;
-            box-shadow: 0 0 10px rgba(0,0,0,0.3) !important;
-            margin-bottom: 20px !important;
+        #docPreviewContainer iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
         }
     </style>
 </head>
@@ -79,14 +75,14 @@
 <div class="container py-5">
     <!-- Header -->
     <div class="text-center mb-4">
-        <h2 class="fw-bold text-success"><i class="fa-solid fa-file-excel me-2"></i>Trộn Biểu Mẫu (Hỗ Trợ PDF, Spire.Doc & Excel)</h2>
+        <h2 class="fw-bold text-success"><i class="fa-solid fa-file-excel me-2"></i>Trộn Biểu Mẫu Word & Excel (Spire.Doc)</h2>
         <p class="text-muted">Hỗ trợ định dạng & xem trước Inline: 
             <span class="badge bg-primary badge-special">BieuMau</span>
             <span class="badge bg-warning text-dark badge-special">TrangThai</span>
             <span class="badge bg-info text-dark badge-special">DauPhanCachPhanNghin (VN/US)</span>
         </p>
 
-        <!-- Nút Điều Khiển Nhanh -->
+        <!-- Nút Điều Khiển Nhanh Thu Nhỏ / Mở Rộng -->
         <div class="d-flex justify-content-center gap-2 mt-3">
             <button type="button" class="btn btn-sm btn-outline-secondary shadow-sm" onclick="expandAllSessions()">
                 <i class="fa-solid fa-angles-down me-1"></i>Mở rộng tất cả
@@ -145,12 +141,12 @@
                 <div class="row g-2 align-items-start">
                     <div class="col-md-8">
                         <div class="input-group">
-                            <input type="file" id="newTemplateFile" accept=".docx,.pdf" class="form-control" />
+                            <input type="file" id="newTemplateFile" accept=".docx" class="form-control" />
                             <button class="btn btn-outline-secondary" type="button" onclick="previewSelectedFile('newTemplateFile')">
                                 <i class="fa-solid fa-eye me-1"></i>Xem trước
                             </button>
                         </div>
-                        <small class="text-muted d-block mt-1">Tệp Word <code>.docx</code> hoặc <code>.pdf</code> sẽ được lưu vĩnh viễn vào thư mục <code>templates/</code> trên GitHub.</small>
+                        <small class="text-muted d-block mt-1">Tệp Word <code>.docx</code> sẽ được lưu vĩnh viễn vào thư mục <code>templates/</code> trên GitHub.</small>
                     </div>
                     <div class="col-md-4">
                         <button type="submit" id="uploadBtn" class="btn btn-primary w-100">
@@ -168,7 +164,7 @@
             <div class="d-flex align-items-center gap-2">
                 <i class="fa-solid fa-folder-open text-warning fs-5"></i>
                 <h5 class="fw-bold mb-0 text-dark">
-                    Danh Sách Biểu Mẫu Hệ Thống (Xử Lý PDF / Spire)
+                    Danh Sách Biểu Mẫu Hệ Thống
                     <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="showHelp(event, 'list_templates')" title="Gợi ý chức năng"></i>
                 </h5>
             </div>
@@ -187,8 +183,8 @@
                     <thead class="table-light">
                         <tr>
                             <th style="width: 50px;">STT</th>
-                            <th>Tên Biểu Mẫu</th>
-                            <th class="text-center" style="width: 250px;">Thao Tác Xem / Tải</th>
+                            <th>Tên Biểu Mẫu (.docx)</th>
+                            <th class="text-center" style="width: 220px;">Thao Tác</th>
                         </tr>
                     </thead>
                     <tbody id="templateListTableBody">
@@ -209,7 +205,7 @@
             <div class="d-flex align-items-center gap-2">
                 <i class="fa-solid fa-gears text-success fs-5"></i>
                 <h5 class="fw-bold mb-0 text-success">
-                    Trộn Dữ Liệu Mail Merge (Xuất Word/ZIP)
+                    Trộn Dữ Liệu Mail Merge
                     <i class="fa-solid fa-circle-question text-info help-icon ms-1" onclick="showHelp(event, 'merge')" title="Gợi ý cách trộn dữ liệu"></i>
                 </h5>
             </div>
@@ -230,7 +226,7 @@
                             <i class="fa-solid fa-file-csv fa-2x text-success mb-2"></i>
                             <input type="file" id="dataFile" accept=".xlsx" class="form-control mb-2" />
                             <button type="button" class="btn btn-sm btn-outline-success" onclick="previewSelectedFile('dataFile')">
-                                <i class="fa-solid fa-eye me-1"></i>Xem Trước Excel
+                                <i class="fa-solid fa-eye me-1"></i>Xem Trước Excel Inline
                             </button>
                         </div>
                     </div>
@@ -245,7 +241,7 @@
                             <i class="fa-solid fa-file-word fa-2x text-primary mb-2"></i>
                             <input type="file" id="templateFile" accept=".docx" class="form-control mb-2" />
                             <button type="button" class="btn btn-sm btn-outline-primary" onclick="previewSelectedFile('templateFile')">
-                                <i class="fa-solid fa-eye me-1"></i>Xem Trước Spire/Word
+                                <i class="fa-solid fa-eye me-1"></i>Xem Trước Word Inline
                             </button>
                         </div>
                     </div>
@@ -283,15 +279,15 @@
     </div>
 </div>
 
-<!-- Modal Xem Trước Tệp Trực Tiếp (PDF / Spire-Doc / Excel) -->
+<!-- Modal Xem Trước Microsoft Office Online Viewer -->
 <div class="modal fade" id="filePreviewModal" tabindex="-1" aria-labelledby="filePreviewModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title fw-bold" id="filePreviewModalLabel"><i class="fa-solid fa-eye me-2"></i>Xem Trước Nội Dung Tệp</h5>
+                <h5 class="modal-title fw-bold" id="filePreviewModalLabel"><i class="fa-solid fa-eye me-2"></i>Microsoft Office Online Viewer</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body p-3">
+            <div class="modal-body p-0">
                 <div id="docPreviewContainer"></div>
             </div>
             <div class="modal-footer">
@@ -309,11 +305,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-<!-- Engine Render Spire/Word Client-Side -->
+<!-- JS Engine Fallback (docx-preview) -->
 <script src="https://unpkg.com/jszip/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.1.15/dist/docx-preview.min.js"></script>
 
 <script>
+    const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/mannc1988/mail-merge-vercel/main/";
+
     function getApiUrl(endpoint) {
         return window.location.hostname.includes('github.io') 
             ? `https://mail-merge-vercel.vercel.app${endpoint}` 
@@ -370,34 +368,35 @@
             },
             'upload_github': {
                 title: '💡 Lưu Biểu Mẫu Lên GitHub',
-                html: 'Cho phép bạn lưu biểu mẫu Word (.docx) hoặc PDF (.pdf) trực tiếp vào thư mục <code>templates/</code> trên GitHub Repository.'
+                html: 'Cho phép bạn lưu biểu mẫu Word (.docx) trực tiếp vào thư mục <code>templates/</code> trên GitHub Repository. Biểu mẫu này sẽ được lưu cố định trên server và có thể áp dụng cho các lần trộn dữ liệu sau bằng cách điền tên file vào cột <code>BieuMau</code> trong Excel.'
             },
             'list_templates': {
                 title: '💡 Danh Sách Biểu Mẫu Hệ Thống',
-                html: 'Liệt kê toàn bộ các tệp mẫu Word/PDF đang lưu trên Server. Bạn có thể chọn <b>Xem PDF</b>, <b>Xem Spire-Doc</b> hoặc <b>Tải về</b>.'
+                html: 'Liệt kê toàn bộ các tệp mẫu Word đang lưu trên Server/GitHub. Bạn có thể nhấn <b>Xem</b> để kiểm tra trực tiếp nội dung hoặc bấm <b>Tải về</b> để chỉnh sửa.'
             },
             'excel_structure': {
                 title: '💡 Cấu Trúc File Excel Chuẩn',
-                html: '• <b>Hàng 1:</b> Tên tiêu đề cột.<br>' +
-                      '• <b>Cột BieuMau:</b> Tên file mẫu áp dụng cho dòng đó.<br>' +
+                html: '• <b>Hàng 1:</b> Tên tiêu đề cột (trùng tên với nhãn <code>{{Nhãn}}</code> trong file Word).<br>' +
+                      '• <b>Cột BieuMau:</b> Chỉ định tệp Word mẫu áp dụng cho dòng đó (VD: <code>ThongBao.docx</code>).<br>' +
                       '• <b>Cột TrangThai:</b> Bỏ qua dòng nếu để <code>Ẩn</code>, <code>Draft</code>, <code>0</code>.<br>' +
-                      '• <b>Cột DauPhanCachPhanNghin:</b> Điền <code>VN</code> hoặc <code>US</code>.'
+                      '• <b>Cột DauPhanCachPhanNghin:</b> Điền <code>VN</code> (15.000.000,75) hoặc <code>US</code> (15,000,000.75).'
             },
             'custom_word': {
                 title: '💡 Biểu Mẫu Word Tùy Chỉnh',
-                html: 'Tải lên 1 tệp Word tùy chỉnh để áp dụng cho tất cả các dòng dữ liệu.'
+                html: 'Nếu bạn tải lên 1 tệp Word ở ô này, hệ thống sẽ <b>ưu tiên dùng biểu mẫu này</b> cho tất cả các dòng dữ liệu trong file Excel (bỏ qua cột <code>BieuMau</code> trong Excel).'
             },
             'filename_col': {
                 title: '💡 Đặt Tên File Tự Động',
-                html: 'Nhập tên cột Excel (VD: <code>HoTen</code>). File Word xuất ra sẽ lấy theo tên này.'
+                html: 'Nhập tên tiêu đề cột trong file Excel (VD: <code>HoTen</code> hoặc <code>MaSV</code>). Khi xuất file riêng lẻ trong tệp ZIP, các file Word sẽ được đặt tên tự động theo giá trị của cột này (VD: <code>NguyenVanA_1.docx</code>).'
             },
             'export_mode': {
                 title: '💡 Chế Độ Xuất Kết Quả',
-                html: '• <b>Đóng gói ZIP:</b> Tạo từng file Word riêng lẻ.<br>• <b>Gộp 1 file Word:</b> Trộn tất cả gộp vào 1 tệp Word duy nhất.'
+                html: '• <b>Đóng gói ZIP:</b> Tạo từng tệp Word riêng lẻ cho từng người/dòng dữ liệu.<br>' +
+                      '• <b>Gộp 1 file Word:</b> Trộn tất cả kết quả gộp nối tiếp vào duy nhất 1 tệp Word (mỗi kết quả cách nhau bằng Ngắt trang - Page Break).'
             },
             'merge': {
                 title: '💡 Quy Trình Trộn Dữ Liệu',
-                html: '1. Chọn file Excel.<br>2. Nhấn <b>Thực Hiện Trộn Dữ Liệu</b> để tự động tải file về máy.'
+                html: '1. Chọn file Excel dữ liệu.<br>2. (Tùy chọn) Chọn file Word mẫu nếu không dùng mẫu lưu sẵn trên server.<br>3. Nhấn <b>Thực Hiện Trộn Dữ Liệu</b>, kết quả sẽ tự động tải về máy sau vài giây.'
             }
         };
 
@@ -429,25 +428,18 @@
 
             let html = '';
             data.templates.forEach((name, idx) => {
-                const isPdf = name.toLowerCase().endsWith('.pdf');
                 html += `
                 <tr>
                     <td class="fw-bold text-secondary">${idx + 1}</td>
                     <td>
-                        <i class="fa-solid ${isPdf ? 'fa-file-pdf text-danger' : 'fa-file-word text-primary'} me-2"></i>
+                        <i class="fa-solid fa-file-word text-primary me-2"></i>
                         <span class="fw-semibold text-dark">${name}</span>
                     </td>
                     <td class="text-center">
                         <div class="btn-group btn-group-sm" role="group">
-                            ${isPdf ? `
-                                <button type="button" class="btn btn-outline-danger" onclick="viewRemotePdf('\${name}')">
-                                    <i class="fa-solid fa-file-pdf me-1"></i>Xem PDF
-                                </button>
-                            ` : `
-                                <button type="button" class="btn btn-outline-primary" onclick="viewRemoteTemplate('\${name}')">
-                                    <i class="fa-solid fa-eye me-1"></i>Xem Spire/Doc
-                                </button>
-                            `}
+                            <button type="button" class="btn btn-outline-primary" onclick="viewRemoteTemplate('${name}')">
+                                <i class="fa-solid fa-eye me-1"></i>Xem (MS Office)
+                            </button>
                             <button type="button" class="btn btn-outline-success" onclick="downloadRemoteTemplate('${name}')">
                                 <i class="fa-solid fa-download me-1"></i>Tải về
                             </button>
@@ -461,54 +453,24 @@
         }
     }
 
-    // 1. XEM TRỰC TIẾP FILE WORD/SPIRE TỪ SERVER
-    async function viewRemoteTemplate(filename) {
+    function viewRemoteTemplate(filename) {
         const container = document.getElementById('docPreviewContainer');
-        container.innerHTML = '<div class="text-center py-5 text-white"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p class="mt-2">Đang tải và dựng giao diện tệp Spire/Word...</p></div>';
+        const fileRawUrl = filename === 'template.docx' 
+            ? `${GITHUB_RAW_BASE}template.docx`
+            : `${GITHUB_RAW_BASE}templates/${encodeURIComponent(filename)}`;
+
+        const msOfficeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileRawUrl)}`;
+
+        container.innerHTML = `<iframe src="${msOfficeViewerUrl}"></iframe>`;
 
         const modal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
         modal.show();
-
-        try {
-            const res = await fetch(getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`));
-            if (!res.ok) throw new Error('Không thể tải tệp biểu mẫu!');
-
-            const blob = await res.blob();
-            container.innerHTML = '';
-            
-            await docx.renderAsync(blob, container, null, {
-                className: "docx",
-                inWrapper: true,
-                ignoreWidth: false,
-                ignoreHeight: false,
-                experimental: true
-            });
-        } catch (err) {
-            container.innerHTML = `<div class="alert alert-danger m-3">Lỗi xem trước tệp Word: ${err.message}</div>`;
-        }
-    }
-
-    // 2. XEM TRỰC TIẾP FILE PDF TỪ SERVER
-    async function viewRemotePdf(filename) {
-        const container = document.getElementById('docPreviewContainer');
-        container.innerHTML = '<div class="text-center py-5 text-white"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p class="mt-2">Đang tải file PDF...</p></div>';
-
-        const modal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
-        modal.show();
-
-        try {
-            const pdfUrl = getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`);
-            container.innerHTML = `<iframe src="${pdfUrl}" width="100%" height="600px" style="border:none; border-radius:8px;"></iframe>`;
-        } catch (err) {
-            container.innerHTML = `<div class="alert alert-danger m-3">Lỗi tải PDF: ${err.message}</div>`;
-        }
     }
 
     function downloadRemoteTemplate(filename) {
         window.location.href = getApiUrl(`/api/get-template-file?name=${encodeURIComponent(filename)}`);
     }
 
-    // 3. XEM TRỰC TIẾP FILE LOCAL (PDF / WORD / EXCEL)
     async function previewSelectedFile(inputId) {
         const input = document.getElementById(inputId);
         if (!input.files || !input.files[0]) {
@@ -525,12 +487,11 @@
         const file = input.files[0];
         const fileName = file.name.toLowerCase();
         const container = document.getElementById('docPreviewContainer');
-        container.innerHTML = '<div class="text-center py-5 text-white"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p class="mt-2">Đang dựng lại giao diện file...</p></div>';
+        container.innerHTML = '<div class="text-center py-5 text-muted"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p class="mt-2">Đang dựng lại giao diện file...</p></div>';
 
         const previewModal = new bootstrap.Modal(document.getElementById('filePreviewModal'));
         previewModal.show();
 
-        // A. Xem tệp Word / Spire.Doc
         if (fileName.endswith('.docx')) {
             try {
                 container.innerHTML = '';
@@ -544,23 +505,19 @@
             } catch(err) {
                 container.innerHTML = `<div class="alert alert-danger m-3">Không thể đọc file Word: ${err.message}</div>`;
             }
-        } 
-        // B. Xem tệp Excel (.xlsx)
-        else if (fileName.endswith('.xlsx')) {
+        } else if (fileName.endswith('.xlsx')) {
             const reader = new FileReader();
             reader.onload = function(e) {
                 const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const htmlTable = XLSX.utils.sheet_to_html(firstSheet, { header: '', footer: '' });
-                container.innerHTML = `<div class="p-3 bg-white rounded shadow-sm table-responsive" style="max-height: 580px;">${htmlTable}</div>`;
-                $('#docPreviewContainer table').addClass('table table-striped table-hover table-bordered w-100');
+                container.innerHTML = `<div class="p-3 bg-white rounded shadow-sm table-responsive" style="height: 100%; overflow: auto;">${htmlTable}</div>`;
+                \$('#docPreviewContainer table').addClass('table table-striped table-hover table-bordered w-100');
             };
             reader.readAsArrayBuffer(file);
-        } 
-        // C. Xem tệp PDF (.pdf)
-        else if (fileName.endswith('.pdf')) {
+        } else if (fileName.endswith('.pdf')) {
             const fileURL = URL.createObjectURL(file);
-            container.innerHTML = `<iframe src="${fileURL}" width="100%" height="600px" style="border:none; border-radius:8px;"></iframe>`;
+            container.innerHTML = `<iframe src="${fileURL}"></iframe>`;
         } else {
             container.innerHTML = `<div class="alert alert-warning m-3">Định dạng tệp không hỗ trợ xem trước.</div>`;
         }
@@ -614,7 +571,7 @@
         if (!fileInput.files || !fileInput.files[0]) {
             Swal.fire({
                 title: 'Chưa Chọn File!',
-                text: 'Vui lòng chọn tệp biểu mẫu (.docx hoặc .pdf) trước khi tải lên.',
+                text: 'Vui lòng chọn tệp biểu mẫu (.docx) trước khi tải lên.',
                 icon: 'warning',
                 confirmButtonColor: '#ffc107'
             });
@@ -682,7 +639,7 @@
         if (filenameColumn) formData.append('filename_column', filenameColumn);
 
         Swal.fire({
-            title: 'Đang xử lý Mail Merge...',
+            title: 'Đang xử lý Spire.Doc...',
             text: 'Vui lòng chờ trong giây lát.',
             allowOutsideClick: false,
             didOpen: () => { Swal.showLoading(); }
@@ -705,14 +662,14 @@
             const downloadUrl = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = downloadUrl;
-            a.download = exportMode === 'zip' ? 'Mail_Merge_Results.zip' : 'Mail_Merge_Merged.docx';
+            a.download = exportMode === 'zip' ? 'Mail_Merge_Results_Spire.zip' : 'Mail_Merge_Merged_Spire.docx';
             document.body.appendChild(a);
             a.click();
             a.remove();
 
             Swal.fire({
                 title: 'Thành Công!',
-                text: 'Trộn biểu mẫu thành công!',
+                text: 'Trộn biểu mẫu Spire.Doc thành công!',
                 icon: 'success',
                 confirmButtonColor: '#198754'
             });
