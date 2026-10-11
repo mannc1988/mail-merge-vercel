@@ -1,5 +1,7 @@
 import io
 import os
+import uuid
+import mimetypes  # FIX LỖI: Import mimetypes bị thiếu
 import base64
 import zipfile
 import requests
@@ -11,7 +13,6 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from spire.doc import Document, FileFormat
 import openpyxl
-import uuid
 
 app = FastAPI()
 
@@ -114,8 +115,6 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
         return custom_bytes
 
     filename = str(template_name).strip() if template_name and str(template_name).strip() else "template.docx"
-    if not filename.endswith(".docx"):
-        filename += ".docx"
 
     possible_paths = [
         Path(__file__).resolve().parent.parent / "templates" / filename,
@@ -139,6 +138,7 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
                 return f.read()
 
     return create_default_template_docx_bytes()
+
 
 @app.post("/api/upload-temp-preview")
 async def upload_temp_preview(file: UploadFile = File(...)):
@@ -170,6 +170,8 @@ def get_temp_file(filename: str):
         media_type=mime_type or "application/octet-stream",
         headers={"Content-Disposition": f"inline; filename={filename}"}
     )
+
+
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     possible_paths = [
@@ -187,16 +189,18 @@ def read_root():
 
 @app.get("/api/list-templates")
 def list_templates():
+    """Hỗ trợ quét danh sách tất cả định dạng file mẫu trong hệ thống."""
     templates = set()
     templates_dir = Path(__file__).resolve().parent.parent / "templates"
     if templates_dir.exists():
-        for f in templates_dir.glob("*.docx"):
+        for f in templates_dir.glob("*.*"):
             templates.add(f.name)
             
     root_dir = Path(__file__).resolve().parent.parent
     if root_dir.exists():
-        for f in root_dir.glob("*.docx"):
-            templates.add(f.name)
+        for f in root_dir.glob("*.*"):
+            if f.suffix.lower() in [".docx", ".pdf", ".xlsx", ".png", ".jpg", ".jpeg"]:
+                templates.add(f.name)
 
     if not templates:
         templates.add("template.docx")
@@ -207,9 +211,10 @@ def list_templates():
 @app.get("/api/get-template-file")
 def get_template_file(name: str):
     template_bytes = get_template_bytes(template_name=name)
+    mime_type, _ = mimetypes.guess_type(name)
     return Response(
         content=template_bytes,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        media_type=mime_type or "application/octet-stream",
         headers={"Content-Disposition": f"attachment; filename={name}"}
     )
 
@@ -248,11 +253,8 @@ def download_sample_excel():
 
 @app.post("/api/upload-template")
 async def upload_template_to_github(template_file: UploadFile = File(...)):
-    if not template_file.filename.endswith(".docx"):
-        raise HTTPException(status_code=400, detail="Chỉ chấp nhận tệp biểu mẫu định dạng .docx!")
-
     if not GITHUB_TOKEN:
-        raise HTTPException(status_code=500, detail="Chưa cấu hình biến môi trường GITHUB_TOKEN trên Vercel!")
+        raise HTTPException(status_code=500, detail="Chưa cấu hình biến môi trường GITHUB_TOKEN!")
 
     filename = template_file.filename.strip()
     file_bytes = await template_file.read()
