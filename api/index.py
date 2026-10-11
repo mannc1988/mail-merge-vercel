@@ -149,29 +149,32 @@ def get_template_bytes(template_name: Optional[str] = None, custom_bytes: Option
 
 @app.post("/api/preview-spire-local")
 async def preview_spire_local(file: UploadFile = File(...)):
-    ext = Path(file.filename).suffix.lower()
-    file_bytes = await file.read()
+    try:
+        ext = Path(file.filename).suffix.lower()
+        file_bytes = await file.read()
 
-    if ext in [".docx", ".doc"]:
-        doc = Document()
-        doc.LoadFromStream(io.BytesIO(file_bytes), FileFormat.Docx)
-        html_stream = io.BytesIO()
-        doc.SaveToStream(html_stream, FileFormat.Html)
-        doc.Close()
-        html_stream.seek(0)
-        return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
+        if ext in [".docx", ".doc"]:
+            doc = Document()
+            doc.LoadFromStream(io.BytesIO(file_bytes), FileFormat.Docx)
+            html_stream = io.BytesIO()
+            doc.SaveToStream(html_stream, FileFormat.Html)
+            doc.Close()
+            html_stream.seek(0)
+            return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
 
-    elif ext in [".xlsx", ".xls"]:
-        workbook = Workbook()
-        workbook.LoadFromStream(io.BytesIO(file_bytes))
-        html_stream = io.BytesIO()
-        workbook.SaveToStream(html_stream, XlsFileFormat.HTML)
-        workbook.Dispose()
-        html_stream.seek(0)
-        return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
+        elif ext in [".xlsx", ".xls"]:
+            workbook = Workbook()
+            workbook.LoadFromStream(io.BytesIO(file_bytes))
+            html_stream = io.BytesIO()
+            workbook.SaveToStream(html_stream, XlsFileFormat.HTML)
+            workbook.Dispose()
+            html_stream.seek(0)
+            return HTMLResponse(content=html_stream.getvalue().decode('utf-8', errors='ignore'))
 
-    mime_type = file.content_type or mimetypes.guess_type(file.filename)[0]
-    return Response(content=file_bytes, media_type=mime_type or "application/octet-stream")
+        mime_type = file.content_type or mimetypes.guess_type(file.filename)[0]
+        return Response(content=file_bytes, media_type=mime_type or "application/octet-stream")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Spire Serverless Error: {str(e)}")
 
 
 @app.get("/")
